@@ -1,0 +1,58 @@
+# Jackaroo rules as implemented
+
+Jackaroo has no single official rulebook; every table has house rules. This app implements the common Gulf/Egyptian set (close to the Jawaker "classic" rules) and exposes the most contested points as options the host can toggle in the lobby.
+
+## Table
+
+- 4, 6 or 8 players. Teams of two; partners sit opposite each other (seat 1 with seat 3 at a 4-player table, seat 1 with seat 4 at a 6-player table, and so on).
+- Each player has 4 marbles, a **home** (where marbles wait and return to when killed), a **base** (the first track cell in front of the home) and a **safe zone** of 4 cells.
+- The track has 19 cells per player (76 for 4 players, 114 for 6, 152 for 8). Marbles move clockwise.
+- One standard 52-card deck for 4 players, two decks for 6 and 8. Jokers are optional (2 per deck).
+
+## Dealing
+
+- From a fresh deck, the first deal is **5 cards** each; every later deal is **4 cards** each. With one deck and 4 players this is exactly 5 + 4 + 4 = 13 cards per player, the whole deck.
+- When the stock cannot cover the next deal, a new deck is shuffled.
+- The dealer rotates one seat each deal; the player after the dealer starts.
+- Shuffling uses a cryptographic random generator. Before the first card of a deck is dealt the server publishes `SHA-256(salt:order)`; when the deck is finished the salt and order are revealed and can be checked in the "Fairness check" panel.
+
+## Your turn
+
+You must play a card if **any** card in your hand has a legal move. If no card can be played you **burn** (discard) a card of your choice without moving. Then the turn passes to the next player.
+
+| Card | Effect |
+|---|---|
+| **A** | Take a marble from home to your base, **or** move a marble 1, **or** 11 steps. |
+| **K** | Take a marble from home to your base, **or** (option *King 13 kills*, default on) move 13 steps killing every marble you pass or land on. |
+| **Q** | Move 12. |
+| **J** | Swap one of your marbles on the track with any other player's marble on the track (partner included). Marbles standing on their own base, in a safe zone or at home cannot be swapped. |
+| **10, 9, 8, 6, 3, 2** | Move that many steps. |
+| **7** | Move 7, or split the 7 between two of your marbles in any way (1+6, 2+5, 3+4 and so on). Each part must be legal on its own, in order. |
+| **5** | Move a marble on the track 5 steps. With the option *5 moves any marble* (default on) you may move **any** player's marble, including an opponent's; a marble moved by someone else can never enter its safe zone this way. |
+| **4** | Move 4 steps **backwards**. |
+| **Joker** | Plays as any card above (option, default off). |
+
+## Movement, killing and protection
+
+- Landing on another marble sends it home (**kill**). This applies to partner marbles too. You cannot land on your own marble.
+- You may jump over marbles on the track, except a marble standing on **its own base**: that marble cannot be passed, killed or swapped, not even by a King.
+- Taking a marble out kills whatever other player's marble is sitting on your base. You cannot take a marble out while your own marble is on your base.
+- Moving backwards with a 4 can pass and kill the same way (a marble on its own base still blocks).
+
+## Safe zone
+
+- A marble enters its safe zone after going round the track, from the cell just before its own base. The card must fit: you cannot overshoot the last safe cell.
+- Inside the safe zone marbles cannot jump over each other and cannot move backwards.
+- The classic trick works: a marble that moves 4 **backwards** from its base is now "at the end of its lap" and can enter the safe zone with a later card.
+
+## Finishing and winning
+
+- When all four of your marbles are in your safe zone you keep receiving and playing cards, but you move your **partner's** marbles.
+- The first team with all **8** marbles in their safe zones wins.
+- The host can start a rematch with the same table; the seats stay as they were.
+
+## Things this app decides that tables often argue about
+
+- A King's 13-step move kills every unprotected marble it passes, yours and your partner's included.
+- A 5 played on another player's marble can kill, but cannot push that marble into its safe zone.
+- There is no "10 makes the next player discard" or "black Queen" rule (those come from the Jawaker *complex* variant). Open an issue if your table wants them; the engine is built so that a card's effect is one `case` in `movesForRank`.
