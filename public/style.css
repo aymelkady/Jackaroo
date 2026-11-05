@@ -143,6 +143,12 @@ body.in-game .topbar { display: none; }
 .pcard.dead { opacity: .45; filter: grayscale(.6); }
 .pcard.joker { background: linear-gradient(160deg, #fff6d5, #f5d98a); }
 .pcard.joker .s { font-size: 13px; letter-spacing: 1px; }
+.pcard .r .eleven { display: block; font-size: 12px; font-weight: 800; margin-top: 2px; letter-spacing: .5px; }
+.pcard .s.swap { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.pcard .s.swap .g { font-size: 28px; line-height: .9; }
+.pcard .s.swap .w { font-size: 10px; letter-spacing: 1.5px; font-weight: 800; }
+.pcard.swapcard { background: linear-gradient(160deg, #fbf7ee 0%, #e8e1d0 100%); }
+.pcard.swapcard.red { color: #c0392b; }
 @media (hover: hover) { .pcard:not(.dead):not(.sel):hover { transform: translateY(-10px) !important; z-index: 1; } }
 .reactions { display: flex; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(16,26,20,.95); border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
 .reactions button { font-size: 22px; padding: 2px 6px; min-height: 0; line-height: 1; border-radius: 999px; background: none; border: none; }
@@ -170,6 +176,7 @@ body.in-game .topbar { display: none; }
 
 /* ---- board (SVG) ---- */
 .hole { stroke: rgba(0,0,0,.55); stroke-width: 1; }
+.suit { font-family: var(--font-ui); }
 .num { fill: rgba(255,228,190,.55); font-size: 11px; font-weight: 700; text-anchor: middle; pointer-events: none; font-family: var(--font-ui); }
 .marble { transition: transform .5s cubic-bezier(.2,.8,.2,1); }
 .marble .body { stroke: rgba(0,0,0,.35); stroke-width: .8; }
@@ -234,6 +241,7 @@ button.design .ds { font-size: 12px; color: var(--muted); }
   .hand { min-height: 92px; padding: 12px 10px 0; overflow-x: auto; max-width: 100%; }
   .pcard { width: 58px; height: 84px; margin-left: -16px; padding: 5px 6px; flex: none; }
   .pcard .r, .pcard .b { font-size: 16px; } .pcard .s { font-size: 24px; }
+  .pcard .s.swap .g { font-size: 22px; } .pcard .s.swap .w { font-size: 8px; letter-spacing: 1px; } .pcard .r .eleven { font-size: 10px; }
   .pcard.sel { transform: translateY(-12px) !important; }
   .reactions button { font-size: 19px; padding: 1px 4px; }
   .screen.game { padding-bottom: 170px; }

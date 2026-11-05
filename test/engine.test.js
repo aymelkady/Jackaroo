@@ -350,3 +350,60 @@ test('players with no cards left are skipped until the next deal', () => {
   E.applyMove(st, 2, E.legalMoves(st, 2)[0].id);
   assert.equal(st.dealNo, 2, 'all hands empty -> new deal');
 });
+
+test('base protection is absolute: another player\'s 5 cannot move a marble off its own base', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 20);
+  put(st, 1, 0, 'track', 0);    // seat 1 on its own base
+  put(st, 2, 0, 'track', 0);    // partner on its own base
+  setHand(st, 0, ['5']);
+  const lm = moves(st, 0);
+  assert.ok(!lm.some((m) => m.marbleId === 'm1_0'));
+  assert.ok(!lm.some((m) => m.marbleId === 'm2_0'));
+  assert.ok(lm.some((m) => m.marbleId === 'm0_0'));
+});
+
+// abs helper: position of seat's marble that should sit at absolute cell `abs` (4 players, L = 76)
+const rel = (seat, abs) => ((abs - seat * 19) % 76 + 76) % 76;
+
+test('wall: two opponent team-mates on consecutive cells block a 6 (and a King)', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 2);
+  put(st, 1, 0, 'track', rel(1, 4));
+  put(st, 3, 0, 'track', rel(3, 5));    // seats 1 and 3 are a team
+  setHand(st, 0, ['6', 'K', '3']);
+  const lm = moves(st, 0);
+  assert.ok(!lm.some((m) => m.marbleId === 'm0_0' && m.rank === '6'));
+  assert.ok(!lm.some((m) => m.marbleId === 'm0_0' && m.kind === 'king'));
+  assert.ok(!lm.some((m) => m.marbleId === 'm0_0' && m.rank === '3')); // landing on the second marble
+  // backwards too
+  put(st, 0, 0, 'track', 7);
+  setHand(st, 0, ['4']);
+  assert.ok(!moves(st, 0).some((m) => m.marbleId === 'm0_0' && m.kind === 'back')); // 7 -> 3 passes 5 then 4
+});
+
+test('wall: landing on the first marble of a wall is legal (kill)', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 2);
+  put(st, 1, 0, 'track', rel(1, 4));
+  put(st, 3, 0, 'track', rel(3, 5));
+  setHand(st, 0, ['2']);
+  const mv = moves(st, 0).find((m) => m.marbleId === 'm0_0' && m.rank === '2');
+  assert.ok(mv);
+  assert.deepEqual(mv.kills, ['m1_0']);
+});
+
+test('wall: my own team wall blocks an opponent; a mixed-team pair does not block', () => {
+  const st = game(4);
+  put(st, 1, 0, 'track', rel(1, 30));
+  put(st, 0, 0, 'track', rel(0, 32));
+  put(st, 2, 0, 'track', rel(2, 33));   // seats 0 and 2 are a team
+  setHand(st, 1, ['6']);
+  assert.ok(!moves(st, 1).some((m) => m.marbleId === 'm1_0'));
+  // replace the partner by an opponent: no wall any more, jumping is fine
+  put(st, 2, 0, 'home', -1);
+  put(st, 3, 0, 'track', rel(3, 33));
+  setHand(st, 1, ['6']);
+  const mv = moves(st, 1).find((m) => m.marbleId === 'm1_0');
+  assert.ok(mv && mv.to.pos === rel(1, 36));
+});

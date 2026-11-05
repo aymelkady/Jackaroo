@@ -263,8 +263,17 @@ function marbleAtAbs(state, abs) {
 }
 
 function isProtected(m) {
-  // A marble standing on its OWN base cannot be passed, killed or swapped.
+  // A marble standing on its OWN base cannot be passed, killed, swapped or moved by another player's 5.
   return m.zone === 'track' && m.pos === 0;
+}
+
+function isWall(state, occ, nextAbs) {
+  // Wall: the marble being passed (occ) and the marble on the next cell in the travel direction
+  // belong to the same team. Nobody (King included) may pass over such a pair.
+  const nxt = marbleAtAbs(state, nextAbs);
+  if (!nxt) return false;
+  const n = state.settings.players;
+  return teamOf(nxt.owner, n) === teamOf(occ.owner, n);
 }
 
 export function isFinished(state, seat) {
@@ -309,6 +318,7 @@ function simulateStep(state, m, steps, opts = {}) {
       const occ = marbleAtAbs(state, abs);
       if (!occ) continue;
       if (isProtected(occ)) return { ok: false };
+      if (k < n && isWall(state, occ, (abs - 1 + L) % L)) return { ok: false }; // two team-mates side by side block
       if (k === n) {
         if (occ.owner === m.owner) return { ok: false };
         kills.push(occ.id);
@@ -324,6 +334,7 @@ function simulateStep(state, m, steps, opts = {}) {
       const occ = marbleAtAbs(state, abs);
       if (!occ) continue;
       if (isProtected(occ)) return { ok: false };
+      if (k < steps && d + 1 <= L - 1 && isWall(state, occ, (abs + 1) % L)) return { ok: false }; // wall
       if (k === steps) {
         if (occ.owner === m.owner) return { ok: false };
         kills.push(occ.id);
@@ -478,6 +489,7 @@ function movesForRank(state, seat, ctrl, rank, card = { suit: null, rank }) {
       for (const m of state.marbles) {
         if (m.zone !== 'track') continue;
         const byOther = m.owner !== ctrl;
+        if (byOther && isProtected(m)) continue; // base protection: nobody else may move a marble off its own base
         const sim = simulateStep(state, m, 5, { byOther });
         if (sim.ok) out.push({ kind: 'five', marbleId: m.id, steps: 5, kills: sim.kills, to: sim.to, picks: [pickMarble(m)] });
       }

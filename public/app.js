@@ -1,12 +1,14 @@
 /* Jackaroo client. Talks JSON over a WebSocket; the server owns all rules. */
+import { armLayout } from './shared/layout.js';
+
 (() => {
   const $ = (id) => document.getElementById(id);
   const TEAM_COLORS = [['#d8372a', '#ff8a7a'], ['#2a6fd8', '#8fbcff'], ['#2f9a4a', '#9be0a8'], ['#e6b43a', '#fff0a0']];
   const TEAM_NAMES = ['A', 'B', 'C', 'D'];
   const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣' };
   const HINT = {
-    A: 'Exit a marble, or move 1 or 11', K: 'Exit a marble, or move 13 and kill on the way', Q: 'Move 12; red Queen may burn a card from the next player', J: 'Black: swap with another player\'s marble. Red: move 11',
-    10: 'Move 10, or make the next player burn a card', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card',
+    A: 'Exit a marble, or move 1 or 11', K: 'Exit a marble, or move 13 and kill on the way', Q: 'Move 12; red Queen may burn a card from the next player', J: 'Swap one of your marbles with another player\'s marble', J11: 'Move 11',
+    10: 'Move 10, or make the next player burn a card', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5 (not one standing on its own base)', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card (as a Jack: swap or move 11)',
   };
 
   let code = null, token = null, playerId = null;
@@ -240,8 +242,10 @@
   const WOOD_OAK = { wood: ['#c99a63', '#a9743f', '#6e4420'], rim: ['#7a4a22', '#3d2410'], accent: '#ffd369', holeTop: '#3a2614', num: 'rgba(255,228,190,.65)', grain: [0.42, 0.27, 0.12] };
   const WOOD_EBONY = { wood: ['#5a4a40', '#2f2520', '#15100d'], rim: ['#0f0b09', '#3a2e27'], accent: '#e8e2d4', holeTop: '#0d0908', num: 'rgba(232,226,212,.7)', grain: [0.2, 0.15, 0.12] };
   const WOOD_SAUDI = { wood: ['#7d4b2a', '#54301a', '#331c0e'], rim: ['#3a2212', '#17100a'], accent: '#d8ac4e', holeTop: '#1a110a', num: 'rgba(236,206,146,.85)', grain: [0.42, 0.27, 0.12] };
+  const WOOD_JJ = { wood: ['#8a5530', '#5e3519', '#3a1f0d'], rim: ['#f0e4c8', '#c7ad80'], accent: '#d9b45e', holeTop: '#1c120a', num: 'rgba(240,214,160,.85)', grain: [0.42, 0.27, 0.12] };
   const DESIGNS = {
-    saudi: { label: 'Saudi cross', sub: 'the real board: walnut, gold inlay', shape: 'cross', pattern: null, center: 'oval', ...WOOD_SAUDI },
+    saudi: { label: 'Saudi board', sub: 'the real board: walnut, gold inlay', shape: 'arms', frame: 'clipped', pattern: null, ...WOOD_SAUDI },
+    jj: { label: 'JJ round', sub: 'round walnut, rope ring', shape: 'arms', frame: 'round', rope: true, pattern: null, ...WOOD_JJ },
     andalus: { label: 'Andalus walnut', sub: 'square, brass inlay', shape: 'square', pattern: 'girih', ...WOOD_ANDALUS },
     andalus8: { label: 'Andalus octagon', sub: 'eight sides, brass inlay', shape: 'octagon', pattern: 'girih', ...WOOD_ANDALUS },
     ebony: { label: 'Ebony & pearl', sub: 'square, mother-of-pearl', shape: 'square', pattern: 'pearl', ...WOOD_EBONY },
@@ -257,7 +261,7 @@
   function shapeVertices(shape, half) {
     const cx = 500, cy = 500;
     if (shape === 'square') return { r: half * 0.3, v: [[cx - half, cy + half], [cx - half, cy - half], [cx + half, cy - half], [cx + half, cy + half]] };
-    if (shape === 'cross') { // clipped-corner square body
+    if (shape === 'clipped') { // clipped-corner square body (Saudi board)
       const c = half * 0.34;
       return { r: 8, v: [[cx - half + c, cy + half], [cx - half, cy + half - c], [cx - half, cy - half + c], [cx - half + c, cy - half], [cx + half - c, cy - half], [cx + half, cy - half + c], [cx + half, cy + half - c], [cx + half - c, cy + half]] };
     }
@@ -279,32 +283,11 @@
     }
     return d + 'Z';
   }
-  const CROSS_W = 0.34; // arm half-width as a fraction of the arm length
-  function plusVertices(half) {
-    const A = half, w = Math.round(half * CROSS_W), c = 500;
-    return [[c, c + A], [c - w, c + A], [c - w, c + w], [c - A, c + w], [c - A, c - w], [c - w, c - w], [c - w, c - A], [c + w, c - A], [c + w, c - w], [c + A, c - w], [c + A, c + w], [c + w, c + w], [c + w, c + A]];
-  }
-  function plusPath(half, r = 14) {
-    const v = plusVertices(half); const n = v.length; let d = '';
-    for (let i = 0; i < n; i++) {
-      const p = v[i], q = v[(i + 1) % n], o = v[(i - 1 + n) % n];
-      const u1 = unit(o, p), u2 = unit(p, q);
-      // concave corners stay sharp, convex ones get a small radius
-      const cross = u1[0] * u2[1] - u1[1] * u2[0];
-      const rr = cross > 0 ? r : 0;
-      const a = [p[0] - u1[0] * rr, p[1] - u1[1] * rr], b = [p[0] + u2[0] * rr, p[1] + u2[1] * rr];
-      d += (i === 0 ? `M ${a[0]} ${a[1]} ` : `L ${a[0]} ${a[1]} `) + (rr ? `Q ${p[0]} ${p[1]} ${b[0]} ${b[1]} ` : '');
-    }
-    return d + 'Z';
-  }
   function unit(a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; }
   function densePath(shape, half) {
     const pts = [];
     if (shape === 'round') {
       for (let i = 0; i < 2000; i++) { const a = Math.PI / 2 + (i / 2000) * 2 * Math.PI; pts.push([500 + half * Math.cos(a), 500 + half * Math.sin(a)]); }
-    } else if (shape === 'cross') {
-      const v = plusVertices(half); const n = v.length;
-      for (let i = 0; i < n; i++) { const p = v[i], q = v[(i + 1) % n]; for (let k = 0; k < 120; k++) { const t = k / 120; pts.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); } }
     } else {
       const { r, v } = shapeVertices(shape, half);
       const n = v.length;
@@ -339,9 +322,17 @@
     if ((500 - x) * nx + (500 - y) * ny < 0) { nx = -nx; ny = -ny; }
     return { x, y, tx, ty, nx, ny };
   }
-  function computeGeometry(s, mySeat, shape) {
+  function computeArmGeometry(s, mySeat) {
+    // real Saudi / JJ board: one U-shaped arm per seat, see shared/layout.js
+    const lay = armLayout(s, mySeat);
     const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
-    const half = shape === 'round' ? 400 : shape === 'octagon' ? 452 : shape === 'cross' ? 430 : 425;
+    const rc = lay.rc, gap = rc * 2.45;
+    return { L, cx: 500, cy: 500, rc, gap, half: lay.R1, shape: 'arms', lay, track: lay.track, safe: lay.safe, home: lay.home, label: lay.label, cpp, n };
+  }
+  function computeGeometry(s, mySeat, shape) {
+    if (shape === 'arms') return computeArmGeometry(s, mySeat);
+    const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
+    const half = shape === 'round' ? 400 : shape === 'octagon' ? 452 : 425;
     const dp = densePath(shape, half);
     const spacing = dp.P / L;
     const rc = Math.min(22, spacing * 0.44);
@@ -350,24 +341,6 @@
     const track = [], frames = [];
     for (let i = 0; i < L; i++) { const f = frameAt(dp, sAt(i)); track.push({ x: f.x, y: f.y }); frames.push(f); }
     const safe = [], home = [], label = [];
-    if (shape === 'cross') {
-      // real board: base at the tip of each arm, safe column down the arm's middle, start pen on the
-      // diagonal between this arm and the next, name plate between the column and the centre oval
-      const w = Math.round(half * CROSS_W);
-      for (let seat = 0; seat < n; seat++) {
-        const fb = frames[seat * cpp];
-        const at = (inward, ahead) => ({ x: fb.x + fb.nx * inward + fb.tx * ahead, y: fb.y + fb.ny * inward + fb.ty * ahead });
-        safe.push(Array.from({ length: s.safeCells }, (_, k) => at(gap * (k + 1.1), 0)));
-        const corner = at(half - w, w); // concave corner ahead (clockwise) of this arm
-        const ux = (fb.tx - fb.nx) / Math.SQRT2, uy = (fb.ty - fb.ny) / Math.SQRT2; // outward diagonal
-        const vx = (fb.tx + fb.nx) / Math.SQRT2, vy = (fb.ty + fb.ny) / Math.SQRT2; // along the pen
-        const pc = { x: corner.x + ux * gap * 2.95, y: corner.y + uy * gap * 2.95 };
-        home.push([0, 1, 2, 3].map((k) => ({ x: pc.x + vx * (k - 1.5) * gap * 0.92, y: pc.y + vy * (k - 1.5) * gap * 0.92 })));
-        const inwardDist = (gap * 5.1 + (half - w)) / 2; // midway between column end (5.1 gap from tip) and the centre square edge
-        label.push({ ...at(inwardDist, 0), horizontal: Math.abs(fb.tx) > 0.7, angle: Math.atan2(fb.ty, fb.tx) * 180 / Math.PI });
-      }
-      return { L, cx: 500, cy: 500, rc, gap, half, shape, track, frames, safe, home, label, cpp, n, w };
-    }
     for (let seat = 0; seat < n; seat++) {
       // the safe zone branches off the hole just BEFORE the base (where a marble enters after its lap),
       // so the base itself is never on the way into the safe zone
@@ -387,8 +360,7 @@
     const mySeat = you ? you.seat : 0;
     const key = `${s.players}-${s.cellsPerPlayer}-${s.safeCells}-${mySeat}-${designId()}`;
     if (boardKey === key) return geo;
-    const shape = design().shape === 'cross' && s.players !== 4 ? 'octagon' : design().shape; // the cross board is a 4-player board
-    geo = computeGeometry(s, mySeat, shape);
+    geo = computeGeometry(s, mySeat, design().shape);
     boardKey = key;
     return geo;
   }
@@ -425,14 +397,7 @@
     return '';
   }
 
-  function boardMarkup(g, d, idp, seatColorOf) {
-    const n = g.n;
-    const shapeHalf = g.half + g.rc * 3.2;
-    const bodyPath = roundedPolyPath(g.shape, shapeHalf);
-    const rimPath = roundedPolyPath(g.shape, shapeHalf + 14);
-    const innerPath = roundedPolyPath(g.shape, shapeHalf - 4);
-    const isCross = g.shape === 'cross';
-    const trackPath = isCross ? plusPath(g.half) : roundedPolyPath(g.shape, g.half);
+  function boardDefs(g, d, idp, seatColorOf) {
     let h = `<defs>
       <radialGradient id="${idp}woodGrad" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="${d.wood[0]}"/><stop offset=".55" stop-color="${d.wood[1]}"/><stop offset="1" stop-color="${d.wood[2]}"/></radialGradient>
       <linearGradient id="${idp}rimGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${d.rim[0]}"/><stop offset=".5" stop-color="${d.rim[1]}"/><stop offset="1" stop-color="${d.rim[0]}"/></linearGradient>
@@ -453,10 +418,126 @@
       <filter id="${idp}mshadow" x="-60%" y="-60%" width="240%" height="240%"><feDropShadow dx="1.5" dy="3" stdDeviation="1.6" flood-color="#000" flood-opacity=".55"/></filter>
       <filter id="${idp}glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       ${d.pattern ? patternDef(idp + 'inlay', d.pattern, d.accent) : ''}`;
-    for (let seat = 0; seat < n; seat++) {
+    for (let seat = 0; seat < g.n; seat++) {
       const c = seatColorOf(seat);
       h += `<radialGradient id="${idp}mg${seat}" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="${shade(c, 0.75)}"/><stop offset=".25" stop-color="${shade(c, 0.25)}"/><stop offset=".7" stop-color="${c}"/><stop offset="1" stop-color="${shade(c, -0.55)}"/></radialGradient>`;
     }
+    return h;
+  }
+
+  function boardMarkup(g, d, idp, seatColorOf) {
+    return g.shape === 'arms' ? armBoardMarkup(g, d, idp, seatColorOf) : ringBoardMarkup(g, d, idp, seatColorOf);
+  }
+
+  // ---------- arm boards (saudi, jj) ----------
+  const f1 = (v) => v.toFixed(1);
+  function armBoardMarkup(g, d, idp, seatColorOf) {
+    const lay = g.lay, n = g.n, sp = lay.sp, rc = g.rc, R1 = lay.R1, dd = lay.d;
+    const band = 0.56 * sp; // half width of the U outline around the track holes
+    const at = (s, a, b) => { const f = lay.frames[s]; return { x: 500 + f.l.x * a + f.o.x * b, y: 500 + f.l.y * a + f.o.y * b }; };
+    const rotOf = (s) => Math.atan2(lay.frames[s].o.y, lay.frames[s].o.x) * 180 / Math.PI;
+    const pill = (c, len, wid, rot, extra) => `<rect x="${f1(c.x - len / 2)}" y="${f1(c.y - wid / 2)}" width="${f1(len)}" height="${f1(wid)}" rx="${f1(Math.min(len, wid) / 2)}" transform="rotate(${f1(rot)} ${f1(c.x)} ${f1(c.y)})" ${extra}/>`;
+    // the closed loop through an arm's 19 holes (holes 1..18 then the star, which sits next to hole 1)
+    const loops = [];
+    for (let s = 0; s < n; s++) {
+      const pts = g.track.filter((t) => t.arm === s).sort((p, q) => p.idx - q.idx);
+      loops.push('M ' + pts.map((p) => `${f1(p.x)} ${f1(p.y)}`).join(' L ') + ' Z');
+    }
+    let h = boardDefs(g, d, idp, seatColorOf);
+    h += `<mask id="${idp}armMask" maskUnits="userSpaceOnUse" x="-30" y="-30" width="1060" height="1060">`;
+    for (const lp of loops) h += `<path d="${lp}" fill="none" stroke="#fff" stroke-width="${f1(band * 2 + 3)}" stroke-linejoin="round"/>`;
+    for (const lp of loops) h += `<path d="${lp}" fill="none" stroke="#000" stroke-width="${f1(band * 2)}" stroke-linejoin="round"/>`;
+    h += `</mask></defs>`;
+    // body
+    const R = lay.R;
+    if (d.frame === 'round') {
+      h += `<circle cx="500" cy="500" r="${R + 10}" fill="url(#${idp}rimGrad)"/>`;
+      h += `<circle cx="500" cy="500" r="${R - 8}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
+      h += `<circle cx="500" cy="500" r="${R - 8}" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="3"/>`;
+      // thin engraved gold lines
+      for (const r of [R - 18, R - 23]) h += `<circle cx="500" cy="500" r="${r}" fill="none" stroke="${d.accent}" stroke-width=".9" stroke-opacity=".7"/>`;
+    } else {
+      const half = R - 5;
+      h += `<path d="${roundedPolyPath('clipped', half + 14)}" fill="url(#${idp}rimGrad)"/>`;
+      h += `<path d="${roundedPolyPath('clipped', half)}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
+      h += `<path d="${roundedPolyPath('clipped', half - 6)}" fill="none" stroke="url(#${idp}brass)" stroke-width="2.5" stroke-opacity=".9"/>`;
+      h += `<path d="${roundedPolyPath('clipped', half - 13)}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".4"/>`;
+      // carrying handles cut into the sides, like the real board
+      for (const sx of [-1, 1]) h += `<rect x="${500 + sx * (half - 30) - 9}" y="${500 - 40}" width="18" height="80" rx="9" fill="#0d0805" stroke="${d.accent}" stroke-opacity=".6"/>`;
+    }
+    // centre circle
+    const cR = lay.centerR;
+    if (d.frame === 'round') {
+      h += `<circle cx="500" cy="500" r="${cR}" fill="rgba(0,0,0,.22)" stroke="${d.accent}" stroke-width="1" stroke-opacity=".8"/>`;
+      if (d.rope) { // rope ring: alternating red / white dashes
+        const rr = cR + 7, circ = 2 * Math.PI * rr, k = Math.round(circ / 14) * 2, dash = circ / k;
+        h += `<circle cx="500" cy="500" r="${f1(rr)}" fill="none" stroke="#f4efe4" stroke-width="7"/>`;
+        h += `<circle cx="500" cy="500" r="${f1(rr)}" fill="none" stroke="#b8262b" stroke-width="7" stroke-dasharray="${dash.toFixed(3)} ${dash.toFixed(3)}" transform="rotate(-90 500 500)"/>`;
+        h += `<circle cx="500" cy="500" r="${f1(rr + 4.5)}" fill="none" stroke="${d.accent}" stroke-width=".9" stroke-opacity=".7"/>`;
+      }
+    } else {
+      h += `<circle cx="500" cy="500" r="${cR + 6}" fill="url(#${idp}brass)" stroke="${shade(d.accent, -0.45)}" stroke-width="2"/>`;
+      h += `<circle cx="500" cy="500" r="${cR}" fill="${d.wood[2]}" stroke="rgba(255,240,200,.45)" stroke-width="1"/>`;
+    }
+    // U outlines around the track holes (fill + 1.5px accent edges via the mask)
+    for (const lp of loops) h += `<path d="${lp}" fill="none" stroke="rgba(0,0,0,.15)" stroke-width="${f1(band * 2)}" stroke-linejoin="round"/>`;
+    h += `<rect x="-30" y="-30" width="1060" height="1060" fill="${d.accent}" mask="url(#${idp}armMask)"/>`;
+    const ring = `stroke:${d.accent};stroke-width:1.2;`;
+    const hole = (p, r, extra = '') => `<circle class="hole" cx="${f1(p.x)}" cy="${f1(p.y)}" r="${f1(r)}" fill="url(#${idp}holeGrad)" filter="url(#${idp}inset)" style="${ring}" ${extra}/>`;
+    const fs = Math.max(9, 0.46 * sp);
+    let nums = '';
+    const num = (p, txt, extra = '') => `<text class="num" x="${f1(p.x)}" y="${f1(p.y + fs * 0.36)}" style="font-size:${f1(fs)}px;fill:${d.num}${extra}">${txt}</text>`;
+    for (let s = 0; s < n; s++) {
+      const c = seatColorOf(s), rot = rotOf(s);
+      // safe column outline (touches the outer row: first safe hole is above hole 17)
+      const sa = at(s, 0, R1 - sp * 2.5 - 0.03 * sp);
+      h += pill(sa, sp * 3.88, sp, rot, `fill="rgba(0,0,0,.15)" stroke="${d.accent}" stroke-width="1.5"`);
+      // pen plate + suit glyph
+      const pc = at(s, dd + 2.6 * sp, R1 - 1.7 * sp);
+      const ps = 1.1 * sp + 2 * rc * 0.95 + 0.25 * sp;
+      h += `<rect x="${f1(pc.x - ps / 2)}" y="${f1(pc.y - ps / 2)}" width="${f1(ps)}" height="${f1(ps)}" rx="${f1(sp * 0.4)}" transform="rotate(${f1(rot)} ${f1(pc.x)} ${f1(pc.y)})" fill="rgba(0,0,0,.2)" stroke="${d.accent}" stroke-width="1.5"/>`;
+      g.home[s].forEach((p) => { h += hole(p, rc * 0.95); });
+      const sg = lay.suit[s], redSuit = sg.glyph === '♥' || sg.glyph === '♦';
+      h += `<text class="suit" x="${f1(sg.x)}" y="${f1(sg.y + sp * 0.4)}" style="font-size:${f1(sp * 1.15)}px;fill:${redSuit ? '#d24b3e' : d.accent};text-anchor:middle;pointer-events:none">${sg.glyph}</text>`;
+      g.safe[s].forEach((p, k) => {
+        h += hole(p, rc).replace(`style="${ring}`, `style="stroke:${c};stroke-width:2;`);
+        nums += `<text class="num" x="${f1(p.x)}" y="${f1(p.y + rc * 0.34)}" style="font-size:${f1(rc * 0.85)}px;fill:${c};opacity:.75">${k + 1}</text>`;
+      });
+      const lp = g.label[s];
+      h += `<text id="${idp}lbl${s}" class="lbl" x="${f1(lp.x)}" y="${f1(lp.y + 7)}" style="fill:${c};font-size:${f1(Math.max(14, rc * 1.15))}px"></text>`;
+    }
+    g.track.forEach((p, i) => {
+      if (p.idx === g.cpp - 1) { // star = this seat's base
+        const c = seatColorOf(p.arm);
+        h += hole(p, rc * 1.12).replace(`style="${ring}`, `style="stroke:${c};stroke-width:3;`);
+        nums += `<text class="num" x="${f1(p.x)}" y="${f1(p.y + rc * 0.42)}" style="font-size:${f1(rc * 1.15)}px;fill:${c};opacity:.95">★</text>`;
+        return;
+      }
+      h += hole(p, rc, `data-abs="${i}"`);
+      // number beside the hole: columns on the inner side (toward the safe column), outer row above (toward the centre);
+      // holes 1 and 15 (corners next to the outer row) on the outer side so they do not collide with 18 / 16;
+      // 17 is numbered inside its hole because the first safe hole sits directly above it
+      const k = p.idx;
+      let a, b;
+      if (k <= 5) { a = k === 0 ? dd + 0.82 * sp : dd - 0.82 * sp; b = R1 - (k + 1) * sp; }
+      else if (k <= 8) { const [la, lb] = [[1.13 * sp, R1 - 6.88 * sp], [0, R1 - 7.35 * sp], [-1.13 * sp, R1 - 6.88 * sp]][k - 6]; const s0 = 0.78 * sp; const ux = la, uy = lb - (R1 - 5.6 * sp), ul = Math.hypot(ux, uy) || 1; a = la - (ux / ul) * s0; b = lb - (uy / ul) * s0; }
+      else if (k <= 14) { a = k === 14 ? -dd - 0.82 * sp : -dd + 0.82 * sp; b = R1 - (5.5 - (k - 9)) * sp; }
+      else if (k === 16) { nums += num({ x: p.x, y: p.y - fs * 0.06 }, '17', ';opacity:.8'); return; } // the safe column sits right above 17: number inside the hole
+      else { a = (k - 16) * sp; b = R1 - 0.8 * sp; }
+      nums += num(at(p.arm, a, b), String(k + 1));
+    });
+    h += nums;
+    return h;
+  }
+
+  function ringBoardMarkup(g, d, idp, seatColorOf) {
+    const n = g.n;
+    const shapeHalf = g.half + g.rc * 3.2;
+    const bodyPath = roundedPolyPath(g.shape, shapeHalf);
+    const rimPath = roundedPolyPath(g.shape, shapeHalf + 14);
+    const innerPath = roundedPolyPath(g.shape, shapeHalf - 4);
+    const trackPath = roundedPolyPath(g.shape, g.half);
+    let h = boardDefs(g, d, idp, seatColorOf);
     h += `</defs>`;
     // body
     h += `<path d="${rimPath}" fill="url(#${idp}rimGrad)"/>`;
@@ -464,31 +545,18 @@
     if (d.pattern) h += `<path d="${bodyPath}" fill="url(#${idp}inlay)"/>`;
     h += `<path d="${innerPath}" fill="none" stroke="url(#${idp}brass)" stroke-width="2.5" stroke-opacity=".85"/>`;
     h += `<path d="${roundedPolyPath(g.shape, shapeHalf - 11)}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35"/>`;
-    if (isCross) {
-      // carrying handles cut into the sides, like the real board
-      for (const sx of [-1, 1]) h += `<rect x="${500 + sx * (shapeHalf - 34) - 10}" y="${500 - 42}" width="20" height="84" rx="10" fill="#0d0805" stroke="${d.accent}" stroke-opacity=".6"/>`;
-      // gold inlay outline on both sides of the track
-      h += `<path d="${trackPath}" fill="none" stroke="url(#${idp}brass)" stroke-width="${g.rc * 3.3}" stroke-linejoin="round"/>`;
-      h += `<path d="${trackPath}" fill="none" stroke="${d.wood[1]}" stroke-width="${g.rc * 3.3 - 4}" stroke-linejoin="round"/>`;
-      h += `<path d="${trackPath}" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="${g.rc * 2.6}" stroke-linejoin="round"/>`;
-      // centre oval
-      h += `<ellipse cx="500" cy="500" rx="${(g.w * 0.92).toFixed(0)}" ry="${(g.w * 0.68).toFixed(0)}" fill="url(#${idp}brass)" stroke="${shade(d.accent, -0.45)}" stroke-width="2"/>`;
-      h += `<ellipse cx="500" cy="500" rx="${(g.w * 0.92 - 6).toFixed(0)}" ry="${(g.w * 0.68 - 6).toFixed(0)}" fill="none" stroke="rgba(255,240,200,.45)" stroke-width="1"/>`;
-    } else {
-      // track groove (wider band, slightly darker) + hairline
-      h += `<path d="${trackPath}" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="${g.rc * 2.9}" stroke-linejoin="round"/>`;
-      h += `<path d="${trackPath}" fill="none" stroke="${d.accent}" stroke-opacity=".18" stroke-width="1"/>`;
-      // centre medallion
-      const R1 = Math.min(175, g.half - g.gap * 4.8), R2 = R1 * 0.42;
-      let star = '';
-      for (let k = 0; k < 16; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 8, r = k % 2 ? R2 : R1; star += `${(500 + r * Math.cos(a)).toFixed(1)},${(500 + r * Math.sin(a)).toFixed(1)} `; }
-      h += `<polygon points="${star}" fill="rgba(0,0,0,.14)" stroke="url(#${idp}brass)" stroke-width="2" stroke-opacity=".7"/>`;
-      h += `<circle cx="500" cy="500" r="${R1 * 1.08}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35" stroke-dasharray="6 5"/>`;
-    }
+    // track groove (wider band, slightly darker) + hairline
+    h += `<path d="${trackPath}" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="${g.rc * 2.9}" stroke-linejoin="round"/>`;
+    h += `<path d="${trackPath}" fill="none" stroke="${d.accent}" stroke-opacity=".18" stroke-width="1"/>`;
+    // centre medallion
+    const R1 = Math.min(175, g.half - g.gap * 4.8), R2 = R1 * 0.42;
+    let star = '';
+    for (let k = 0; k < 16; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 8, r = k % 2 ? R2 : R1; star += `${(500 + r * Math.cos(a)).toFixed(1)},${(500 + r * Math.sin(a)).toFixed(1)} `; }
+    h += `<polygon points="${star}" fill="rgba(0,0,0,.14)" stroke="url(#${idp}brass)" stroke-width="2" stroke-opacity=".7"/>`;
+    h += `<circle cx="500" cy="500" r="${R1 * 1.08}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35" stroke-dasharray="6 5"/>`;
     // holes
     let nums = '';
-    const ring = isCross ? `stroke:${d.accent};stroke-width:1.4;` : '';
-    const hole = (p, r, extra = '') => `<circle class="hole" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${idp}holeGrad)" filter="url(#${idp}inset)" style="${ring}" ${extra}/>`;
+    const hole = (p, r, extra = '') => `<circle class="hole" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${idp}holeGrad)" filter="url(#${idp}inset)" style="" ${extra}/>`;
     g.track.forEach((p, i) => {
       const isBase = i % g.cpp === 0;
       const seat = i / g.cpp;
@@ -498,28 +566,6 @@
     });
     for (let seat = 0; seat < n; seat++) {
       const c = seatColorOf(seat);
-      if (isCross) {
-        // inlay outlines around the safe column and the start pen
-        const sc = g.safe[seat], f = g.frames[seat * g.cpp];
-        const mid = { x: (sc[0].x + sc[3].x) / 2, y: (sc[0].y + sc[3].y) / 2 };
-        const len = Math.hypot(sc[3].x - sc[0].x, sc[3].y - sc[0].y) + g.rc * 3.4, wid = g.rc * 3.2;
-        const rot = Math.atan2(f.ny, f.nx) * 180 / Math.PI;
-        h += `<rect x="${(mid.x - len / 2).toFixed(1)}" y="${(mid.y - wid / 2).toFixed(1)}" width="${len.toFixed(1)}" height="${wid.toFixed(1)}" rx="${(wid / 2).toFixed(1)}" fill="rgba(0,0,0,.18)" stroke="url(#${idp}brass)" stroke-width="2" transform="rotate(${rot.toFixed(1)} ${mid.x.toFixed(1)} ${mid.y.toFixed(1)})"/>`;
-        const hp = g.home[seat];
-        const hm = { x: (hp[0].x + hp[3].x) / 2, y: (hp[0].y + hp[3].y) / 2 };
-        const hl = Math.hypot(hp[3].x - hp[0].x, hp[3].y - hp[0].y) + g.rc * 3.2;
-        const hr = Math.atan2(hp[3].y - hp[0].y, hp[3].x - hp[0].x) * 180 / Math.PI;
-        h += `<rect x="${(hm.x - hl / 2).toFixed(1)}" y="${(hm.y - wid / 2).toFixed(1)}" width="${hl.toFixed(1)}" height="${wid.toFixed(1)}" rx="${(wid / 2).toFixed(1)}" fill="rgba(0,0,0,.18)" stroke="url(#${idp}brass)" stroke-width="2" transform="rotate(${hr.toFixed(1)} ${hm.x.toFixed(1)} ${hm.y.toFixed(1)})"/>`;
-        hp.forEach((p) => { h += hole(p, g.rc * 0.95); });
-        // name plate: gold tablet between the column and the centre
-        const lp = g.label[seat];
-        const pw = g.gap * 2.9, ph = g.rc * 2.3;
-        const prot = Math.abs(f.ny) > 0.7 ? 0 : (f.nx > 0 ? -90 : 90);
-        h += `<rect x="${(lp.x - pw / 2).toFixed(1)}" y="${(lp.y - ph / 2).toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="url(#${idp}brass)" stroke="${shade(d.accent, -0.45)}" stroke-width="1.5" transform="rotate(${prot} ${lp.x.toFixed(1)} ${lp.y.toFixed(1)})"/>`;
-        h += `<text id="${idp}lbl${seat}" class="lbl plate" x="${lp.x.toFixed(1)}" y="${(lp.y + 6).toFixed(1)}" transform="rotate(${prot} ${lp.x.toFixed(1)} ${lp.y.toFixed(1)})" style="fill:#2a1709;stroke:none;font-size:${(g.rc * 0.95).toFixed(1)}px"></text>`;
-        g.safe[seat].forEach((p, k) => { h += hole(p, g.rc).replace('style="', `style="stroke:${c};stroke-width:2;`); nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.38).toFixed(1)}" style="font-size:${(g.rc * 0.85).toFixed(1)}px;fill:${c};opacity:.75">${k + 1}</text>`; });
-        continue;
-      }
       g.safe[seat].forEach((p, k) => { h += hole(p, g.rc).replace('style="', `style="stroke:${c};stroke-width:1.8;`); nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.38).toFixed(1)}" style="font-size:${(g.rc * 0.85).toFixed(1)}px;fill:${c};opacity:.75">${k + 1}</text>`; });
       const hp = g.home[seat];
       const mx = (hp[0].x + hp[3].x) / 2, my = (hp[0].y + hp[3].y) / 2;
@@ -541,13 +587,15 @@
     const svg = $('board');
     let h = boardMarkup(g, d, '', seatColor);
     // centre: title, status, piles
-    const oval = d.center === 'oval' && g.shape === 'cross';
-    if (oval) h += `<text class="center-title" x="500" y="452" style="fill:#2a1709;fill-opacity:.55;font-size:18px;letter-spacing:3px">JACKAROO</text>`;
-    else h += `<text class="center-title" x="500" y="430" style="fill:${d.accent};fill-opacity:.6">JACKAROO</text>`;
-    h += oval
-      ? `<text id="centerText" class="center-text" x="500" y="482" style="fill:#2a1709;stroke:none;font-size:22px"></text><text id="centerSub" class="center-sub" x="500" y="502" style="fill:#4a2d14;stroke:none;font-size:13px"></text>`
-      : `<text id="centerText" class="center-text" x="500" y="478"></text><text id="centerSub" class="center-sub" x="500" y="506"></text>`;
-    const cw = oval ? 44 : 54, ch = oval ? 62 : 76, py = oval ? 512 : 536;
+    const arms = g.shape === 'arms';
+    if (arms) {
+      // inside the centre circle: status text above the deck and discard piles
+      h += `<text id="centerText" class="center-text" x="500" y="458" style="fill:${shade(d.accent, 0.3)};font-size:20px"></text><text id="centerSub" class="center-sub" x="500" y="478" style="font-size:13px"></text>`;
+    } else {
+      h += `<text class="center-title" x="500" y="430" style="fill:${d.accent};fill-opacity:.6">JACKAROO</text>`;
+      h += `<text id="centerText" class="center-text" x="500" y="478"></text><text id="centerSub" class="center-sub" x="500" y="506"></text>`;
+    }
+    const cw = arms ? 44 : 54, ch = arms ? 62 : 76, py = arms ? 490 : 536;
     h += `<g id="piles">
       <rect class="pile-card" x="${500 - cw - 10 + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6" fill="url(#cardBack)"/>
       <rect class="pile-card" x="${500 - cw - 10}" y="${py}" width="${cw}" height="${ch}" rx="6" fill="url(#cardBack)"/>
@@ -850,10 +898,29 @@
   }
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Jacks: black Jacks are SWAP cards; red Jacks move 11 (with complex cards off every Jack swaps)
+  function jackKind(c) {
+    if (c.rank !== 'J') return null;
+    const red = c.suit === 'H' || c.suit === 'D';
+    const complex = !state || !state.settings || state.settings.complexCards !== false;
+    return red && complex ? 'eleven' : 'swap';
+  }
+  function cardHint(c) {
+    const jk = jackKind(c);
+    if (jk === 'swap') return HINT.J;
+    if (jk === 'eleven') return HINT.J11;
+    return HINT[c.rank] || '';
+  }
+  function cardInner(c) {
+    if (c.rank === 'JOKER') return `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>`;
+    const jk = jackKind(c);
+    if (jk === 'swap') return `<div class="r">J</div><div class="s swap"><span class="g">⇄</span><span class="w">SWAP</span></div><div class="b">J</div>`;
+    if (jk === 'eleven') return `<div class="r">J<span class="eleven">11</span></div><div class="s">${SUIT[c.suit]}</div><div class="b">J</div>`;
+    return `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
+  }
   function cardFaceHTML(c) {
     const red = c.suit === 'H' || c.suit === 'D';
-    const inner = c.rank === 'JOKER' ? `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>` : `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
-    return `<div class="pcard${red ? ' red' : ''}${c.rank === 'JOKER' ? ' joker' : ''}" style="margin:0">${inner}</div>`;
+    return `<div class="pcard${red ? ' red' : ''}${c.rank === 'JOKER' ? ' joker' : ''}${jackKind(c) === 'swap' ? ' swapcard' : ''}" style="margin:0">${cardInner(c)}</div>`;
   }
   function rectOfSeat(seat) {
     const chip = document.querySelector(`.seat-chip[data-seat="${seat}"]`);
@@ -957,7 +1024,8 @@
       d.title = `Team ${TEAM_NAMES[seat % (n / 2)]}${p && p.isBot ? ' · bot' : ''}`;
       d.dataset.name = p ? p.name : '';
       d.dataset.seat = seat;
-      if (lp.angle != null && !lp.horizontal) d.style.transform = `translate(-50%, -50%) rotate(${lp.angle < 0 ? -90 : 90}deg)`;
+      if (lp.rot != null) { if (lp.rot) d.style.transform = `translate(-50%, -50%) rotate(${lp.rot}deg)`; }
+      else if (lp.angle != null && !lp.horizontal) d.style.transform = `translate(-50%, -50%) rotate(${lp.angle < 0 ? -90 : 90}deg)`;
       d.innerHTML = `<span class="av" style="background:${seatColor(seat)}">${esc(p ? initials(p.name) : '')}</span><span class="nm">${esc(p ? (seat === mySeat ? 'You' : p.name) : '')}</span><span class="cnt">${state.handCounts[seat] ?? 0}</span>`;
       seatsEl.appendChild(d);
       $('lbl' + seat).textContent = '';
@@ -977,9 +1045,9 @@
         const el = document.createElement('div');
         const red = c.suit === 'H' || c.suit === 'D';
         if (fresh && !reducedMotion) { el.classList.add('dealin'); el.style.animationDelay = `${420 + idx * 70 * n}ms`; }
-        el.className += ' pcard' + (red ? ' red' : '') + (c.rank === 'JOKER' ? ' joker' : '') + (sel.cardId === c.id ? ' sel' : '') + (myTurn && !playable.has(c.id) ? ' dead' : '');
-        el.title = HINT[c.rank] || '';
-        el.innerHTML = c.rank === 'JOKER' ? `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>` : `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
+        el.className += ' pcard' + (red ? ' red' : '') + (c.rank === 'JOKER' ? ' joker' : '') + (jackKind(c) === 'swap' ? ' swapcard' : '') + (sel.cardId === c.id ? ' sel' : '') + (myTurn && !playable.has(c.id) ? ' dead' : '');
+        el.title = cardHint(c);
+        el.innerHTML = cardInner(c);
         el.onclick = () => {
           if (!myTurn || !playable.has(c.id)) return;
           sel = sel.cardId === c.id ? { cardId: null, picks: [] } : { cardId: c.id, picks: [] };
@@ -1099,7 +1167,7 @@
     else {
       const wasHidden = $('screenGame').classList.contains('hidden');
       showScreen('Game');
-      if (wasHidden) { const st = document.querySelector('.board-stage'); st.classList.remove('intro'); void st.offsetWidth; st.classList.add('intro'); }
+      if (wasHidden) { const st = document.querySelector('.board-stage'); st.classList.remove('intro'); void st.offsetWidth; st.classList.add('intro'); setTimeout(() => st.classList.remove('intro'), 1400); }
       if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; }
       renderGame();
       if (wasHidden) requestAnimationFrame(() => { const w = document.querySelector('.board-wrap'); if (w.classList.contains('zoomed')) { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; } });
@@ -1110,7 +1178,7 @@
 
   // ---------- boot ----------
   renderRecent();
-  try { $('homeArt').innerHTML = previewMarkup('saudi', 'home_'); } catch { /* decorative */ }
+  try { $('homeArt').innerHTML = previewMarkup('jj', 'home_'); } catch { /* decorative */ }
   const qg = new URLSearchParams(location.search).get('g') || (location.pathname.match(/\/g\/([A-Za-z0-9]{3,12})/) || [])[1];
   if (qg) {
     const c = qg.toUpperCase();
