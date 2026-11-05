@@ -1,6 +1,10 @@
 # Plan: real JJ board layout + rule corrections
 
-Status: approved spec. Implement exactly this; do not redesign.
+Status: NOT in use. The geometry in section 1 was implemented (`shared/layout.js`) and then withdrawn from the client:
+it draws every arm as a closed 19-hole ring (the star sits next to hole 1 of the *same* arm), while the engine's
+track runs star -> hole 1 of the *next* arm. On screen a marble leaving its base jumped across the board and the
+four arms were disconnected. The client draws the continuous cross track again. Rebuild this layout only from a
+photo of the real board where the connection between neighbouring arms is visible, and keep the track continuous.
 
 ## 0. Why
 

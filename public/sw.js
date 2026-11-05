@@ -1,7 +1,7 @@
 // Minimal service worker: caches the static shell so the app opens fast on phones.
 // Game state is never cached; it always comes live over the WebSocket.
-const CACHE = 'jackaroo-v4';
-const SHELL = ['./', './index.html', './app.js', './p2p.js', './config.js', './style.css', './manifest.webmanifest', './icons/icon.svg', './vendor/peerjs.min.js', './shared/engine.js', './shared/host.js', './shared/rng.js', './shared/layout.js'];
+const CACHE = 'jackaroo-v5';
+const SHELL = ['./', './index.html', './app.js', './p2p.js', './config.js', './style.css', './manifest.webmanifest', './icons/icon.svg', './vendor/peerjs.min.js', './shared/engine.js', './shared/host.js', './shared/rng.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

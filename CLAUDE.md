@@ -8,7 +8,7 @@ Live multiplayer Jackaroo board game. Node 22, no build step, two runtime deps (
 
 ## Layout
 - `shared/engine.js` – ALL rules. Pure functions on a JSON state. `legalMoves(state, seat)` returns every legal move with a `picks` list (the taps the UI needs); `applyMove(state, seat, moveId)` re-validates and applies. Never put rules in the client. Must stay free of Node-only imports (it runs in browsers too); randomness/hashing come from `shared/rng.js`.
-- `shared/layout.js` – `armLayout()`: the real-board geometry (one U-shaped arm per player: 1..18 then the star, safe column in the middle, pen on the diagonal). Pure, unit-tested in `test/layout.test.js`; `docs/PLAN-jj-board.md` is the spec.
+- `shared/layout.js` – `armLayout()`: an experimental U-arm geometry, unit-tested in `test/layout.test.js` but NOT used by the client (it draws each arm as a closed ring, which contradicts the continuous engine track). See the status note in `docs/PLAN-jj-board.md` before touching it.
 - `shared/host.js` – `GameHost`: the message protocol, lobby, bots, reconnection (token, fallback: same name on a disconnected seat), persistence via an injected async storage. Transport-agnostic: a conn is anything with `send(msg)`.
 - `server/index.js` – Node: Express + ws wired to `GameHost`, file or Upstash Redis storage.
 - `public/p2p.js` – serverless mode (GitHub Pages): the creator's browser runs `GameHost` with localStorage storage; others connect over WebRTC data channels via PeerJS (vendored in `public/vendor/`). `config.js` selects the mode (`window.JK_MODE`), the Node server overrides it with 'server'.
