@@ -244,15 +244,15 @@ import { armLayout } from './shared/layout.js';
   const WOOD_SAUDI = { wood: ['#7d4b2a', '#54301a', '#331c0e'], rim: ['#3a2212', '#17100a'], accent: '#d8ac4e', holeTop: '#1a110a', num: 'rgba(236,206,146,.85)', grain: [0.42, 0.27, 0.12] };
   const WOOD_JJ = { wood: ['#8a5530', '#5e3519', '#3a1f0d'], rim: ['#f0e4c8', '#c7ad80'], accent: '#d9b45e', holeTop: '#1c120a', num: 'rgba(240,214,160,.85)', grain: [0.42, 0.27, 0.12] };
   const DESIGNS = {
+    jj: { label: 'JJ round', sub: 'the real JJ board (default)', shape: 'arms', frame: 'round', rope: true, pattern: null, ...WOOD_JJ },
     saudi: { label: 'Saudi board', sub: 'the real board: walnut, gold inlay', shape: 'arms', frame: 'clipped', pattern: null, ...WOOD_SAUDI },
-    jj: { label: 'JJ round', sub: 'round walnut, rope ring', shape: 'arms', frame: 'round', rope: true, pattern: null, ...WOOD_JJ },
     andalus: { label: 'Andalus walnut', sub: 'square, brass inlay', shape: 'square', pattern: 'girih', ...WOOD_ANDALUS },
     andalus8: { label: 'Andalus octagon', sub: 'eight sides, brass inlay', shape: 'octagon', pattern: 'girih', ...WOOD_ANDALUS },
     ebony: { label: 'Ebony & pearl', sub: 'square, mother-of-pearl', shape: 'square', pattern: 'pearl', ...WOOD_EBONY },
     oaksq: { label: 'Plain oak', sub: 'square, no inlay', shape: 'square', pattern: null, ...WOOD_OAK },
     oak: { label: 'Classic round', sub: 'the original board', shape: 'round', pattern: null, ...WOOD_OAK },
   };
-  function designId() { const d = localStorage.getItem('jk.design'); return DESIGNS[d] ? d : 'saudi'; }
+  function designId() { const d = localStorage.getItem('jk.design'); return DESIGNS[d] ? d : 'jj'; }
   function design() { return DESIGNS[designId()]; }
 
   // ---------- geometry ----------

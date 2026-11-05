@@ -15,8 +15,7 @@ board game, in the GitHub repo `aymelkady/Jackaroo`, default and working branch 
   what he does not like in a few words; ask one precise question when a request is ambiguous, otherwise act.
 - The last complaint ("you ruined the game") was that marbles jumped between arms: an earlier board drew each
   arm as a closed loop. Fixed: the track is now one continuous loop through the central ring (see below).
-  **FIRST ACTION: show him the current screenshots and ask if the board is right now; then ask for his Render
-  URL.** Earlier client versions, if he wants something back: `643fd61` (motion pass, ring-track boards).
+  Board confirmed against his photos; Render URL known (see Links). Earlier client versions, if he wants something back: `643fd61` (motion pass, ring-track boards).
 - Never add a Co-Authored-By trailer or session link to commits. Commit as `aymelkady <aymelkady@gmail.com>`.
 - Model routing he asked for: write code with an **Opus 5.5** subagent, do git operations (commit, push,
   branch checks) with a **Haiku** subagent; the main session verifies (tests, screenshots) and reports.
@@ -29,8 +28,8 @@ board game, in the GitHub repo `aymelkady/Jackaroo`, default and working branch 
 - **Links**: GitHub Pages https://aymelkady.github.io/Jackaroo/ (serverless: the table creator's browser hosts
   the game over WebRTC via PeerJS; published automatically to `gh-pages` by `.github/workflows/pages.yml` on
   every push). He also deployed the **Node server on Render** from this branch (Docker runtime, auto-deploy);
-  he has not given the URL yet. Once known, set repository variable `JK_SERVER` to it (or `window.JK_SERVER`
-  in `public/config.js`) so the Pages site uses the server instead of peer-to-peer. The sandbox cannot reach
+  its URL is https://jackaroo.onrender.com, baked into `scripts/build-pages.sh` as the default `JK_SERVER`, so
+  the Pages site runs in server mode against Render. A non-empty repository variable `JK_SERVER` overrides it. The sandbox cannot reach
   github.io, Render, PeerJS cloud or most sites; GitHub API and npm work.
 - **Architecture**: `shared/engine.js` (all rules, pure), `shared/host.js` (lobby/protocol/bots, transport
   agnostic), `shared/layout.js` (board geometry, pure, unit-tested), `server/index.js` (Express + ws),
@@ -43,7 +42,7 @@ board game, in the GitHub repo `aymelkady/Jackaroo`, default and working branch 
   (not one on its own star); 4 back; Joker any card; no jumping over own marbles (option); same-team wall of
   two consecutive marbles blocks everyone; marble on its own star untouchable; safe zone entered from hole 18;
   finished player moves partner's marbles; first team with 8 safe wins; 5 cards first deal then 4.
-- **Board**: default design `saudi` (clipped-square walnut, gold inlay) and `jj` (round walnut, rope ring),
+- **Board**: default design `jj` (round walnut, rope ring) and alternative `saudi` (clipped-square walnut, gold inlay),
   both using the real-board geometry from his photos (`shared/layout.js`, tests in `test/layout.test.js`):
   ONE continuous loop of 76 holes. Between two stars: 1-5 up your left column toward the centre, 6-9 along
   the central ring quadrant, 10-14 down the next arm's near column, 15-18 along that arm's outer row, then
@@ -76,8 +75,9 @@ a transient `commit_refs` failure on the gh-pages push just needs a rerun of the
    column, 15-18 along its outer row to its star; safe column in the middle entered from the 18 beside the
    star; pens on the diagonals. The real pens are engraved as the suit shape (♠ ♥ ♦ ♣) with the 4 marbles
    inside; ours is a square plate with the suit beside it. The octagon board has a 1x4 pen slot instead.
-2. Get his Render URL, wire `JK_SERVER` (repository variable), test a real game against it.
-3. Ask whether `jj` (round) should be the default instead of `saudi`.
+2. Test a real game on the Pages site against Render (the sandbox cannot reach either; he or a session with
+   network access has to do it). Render free tier sleeps after 15 min idle; the first connection takes ~1 min.
+3. `jj` (round) is the default design since he asked "where is the JJ"; `saudi` stays in the picker.
 4. Scrapling is installed in this sandbox but cannot reach the rules sites (proxy 403); do not promise it.
 5. The Pages workflow now runs only for the default branch `ccr-6d2f9d52-xmfhda`. Branch
    `ccr-c548cf10-u60aus` is a dead end (an earlier session restored the old cross board there); it can be
