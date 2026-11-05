@@ -437,12 +437,8 @@ import { armLayout } from './shared/layout.js';
     const at = (s, a, b) => { const f = lay.frames[s]; return { x: 500 + f.l.x * a + f.o.x * b, y: 500 + f.l.y * a + f.o.y * b }; };
     const rotOf = (s) => Math.atan2(lay.frames[s].o.y, lay.frames[s].o.x) * 180 / Math.PI;
     const pill = (c, len, wid, rot, extra) => `<rect x="${f1(c.x - len / 2)}" y="${f1(c.y - wid / 2)}" width="${f1(len)}" height="${f1(wid)}" rx="${f1(Math.min(len, wid) / 2)}" transform="rotate(${f1(rot)} ${f1(c.x)} ${f1(c.y)})" ${extra}/>`;
-    // the closed loop through an arm's 19 holes (holes 1..18 then the star, which sits next to hole 1)
-    const loops = [];
-    for (let s = 0; s < n; s++) {
-      const pts = g.track.filter((t) => t.arm === s).sort((p, q) => p.idx - q.idx);
-      loops.push('M ' + pts.map((p) => `${f1(p.x)} ${f1(p.y)}`).join(' L ') + ' Z');
-    }
+    // one closed outline along the whole 76-hole track (columns, ring, outer rows)
+    const loops = ['M ' + g.track.map((p) => `${f1(p.x)} ${f1(p.y)}`).join(' L ') + ' Z'];
     let h = boardDefs(g, d, idp, seatColorOf);
     h += `<mask id="${idp}armMask" maskUnits="userSpaceOnUse" x="-30" y="-30" width="1060" height="1060">`;
     for (const lp of loops) h += `<path d="${lp}" fill="none" stroke="#fff" stroke-width="${f1(band * 2 + 3)}" stroke-linejoin="round"/>`;
@@ -479,7 +475,9 @@ import { armLayout } from './shared/layout.js';
       h += `<circle cx="500" cy="500" r="${cR + 6}" fill="url(#${idp}brass)" stroke="${shade(d.accent, -0.45)}" stroke-width="2"/>`;
       h += `<circle cx="500" cy="500" r="${cR}" fill="${d.wood[2]}" stroke="rgba(255,240,200,.45)" stroke-width="1"/>`;
     }
-    // U outlines around the track holes (fill + 1.5px accent edges via the mask)
+    // engraved circles just inside and outside the central ring of holes
+    for (const r of [lay.Rr - 0.95 * sp, lay.Rr + 0.95 * sp]) h += `<circle cx="500" cy="500" r="${f1(r)}" fill="none" stroke="${d.accent}" stroke-width=".8" stroke-opacity=".35"/>`;
+    // outline along the track holes (fill + 1.5px accent edges via the mask)
     for (const lp of loops) h += `<path d="${lp}" fill="none" stroke="rgba(0,0,0,.15)" stroke-width="${f1(band * 2)}" stroke-linejoin="round"/>`;
     h += `<rect x="-30" y="-30" width="1060" height="1060" fill="${d.accent}" mask="url(#${idp}armMask)"/>`;
     const ring = `stroke:${d.accent};stroke-width:1.2;`;
@@ -507,24 +505,15 @@ import { armLayout } from './shared/layout.js';
       h += `<text id="${idp}lbl${s}" class="lbl" x="${f1(lp.x)}" y="${f1(lp.y + 7)}" style="fill:${c};font-size:${f1(Math.max(14, rc * 1.15))}px"></text>`;
     }
     g.track.forEach((p, i) => {
-      if (p.idx === g.cpp - 1) { // star = this seat's base
-        const c = seatColorOf(p.arm);
+      if (p.k === 0) { // star = this seat's base
+        const c = seatColorOf(p.seg);
         h += hole(p, rc * 1.12).replace(`style="${ring}`, `style="stroke:${c};stroke-width:3;`);
         nums += `<text class="num" x="${f1(p.x)}" y="${f1(p.y + rc * 0.42)}" style="font-size:${f1(rc * 1.15)}px;fill:${c};opacity:.95">★</text>`;
         return;
       }
       h += hole(p, rc, `data-abs="${i}"`);
-      // number beside the hole: columns on the inner side (toward the safe column), outer row above (toward the centre);
-      // holes 1 and 15 (corners next to the outer row) on the outer side so they do not collide with 18 / 16;
-      // 17 is numbered inside its hole because the first safe hole sits directly above it
-      const k = p.idx;
-      let a, b;
-      if (k <= 5) { a = k === 0 ? dd + 0.82 * sp : dd - 0.82 * sp; b = R1 - (k + 1) * sp; }
-      else if (k <= 8) { const [la, lb] = [[1.13 * sp, R1 - 6.88 * sp], [0, R1 - 7.35 * sp], [-1.13 * sp, R1 - 6.88 * sp]][k - 6]; const s0 = 0.78 * sp; const ux = la, uy = lb - (R1 - 5.6 * sp), ul = Math.hypot(ux, uy) || 1; a = la - (ux / ul) * s0; b = lb - (uy / ul) * s0; }
-      else if (k <= 14) { a = k === 14 ? -dd - 0.82 * sp : -dd + 0.82 * sp; b = R1 - (5.5 - (k - 9)) * sp; }
-      else if (k === 16) { nums += num({ x: p.x, y: p.y - fs * 0.06 }, '17', ';opacity:.8'); return; } // the safe column sits right above 17: number inside the hole
-      else { a = (k - 16) * sp; b = R1 - 0.8 * sp; }
-      nums += num(at(p.arm, a, b), String(k + 1));
+      if (p.lx != null) nums += num({ x: p.lx, y: p.ly }, p.label);
+      else nums += num({ x: p.x, y: p.y - fs * 0.06 }, p.label, ';opacity:.8'); // 17: the safe column sits right above it
     });
     h += nums;
     return h;

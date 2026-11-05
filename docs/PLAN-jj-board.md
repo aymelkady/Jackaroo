@@ -1,5 +1,12 @@
 # Plan: real JJ board layout + rule corrections
 
+> **Revision 2 (after the owner's correction):** the arms are NOT closed loops. The inner arcs of all arms
+> form one continuous ring around the centre. Between two stars the path is 1-5 up seat s's left column,
+> 6-9 along the ring quadrant, 10-14 down seat s+1's right column, 15-18 along seat s+1's outer row, then
+> seat s+1's star. One loop of N*19 holes, no jumps. Section 1 below is superseded by `shared/layout.js`
+> and `test/layout.test.js` (which now require zero jumps). Ring radius `Rr = hypot(R1-5sp, 2sp)`,
+> spacing 34/30/24 for 4/6/8 players, centre circle `Rr - 1.6sp`.
+
 Status: approved spec. Implement exactly this; do not redesign.
 
 ## 0. Why
