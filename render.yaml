@@ -1,3 +1,7 @@
+# Render Blueprint: free web service. Click "New +" -> "Blueprint" in Render, pick this repo, Apply.
+# Games are kept in memory and on the instance's disk; the free plan wipes that disk when the
+# service spins down after ~15 min without traffic. Add the two Upstash variables (free Redis)
+# and games survive restarts and deploys.
 services:
   - type: web
     name: jackaroo
@@ -9,9 +13,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: DATA_DIR
-        value: /data
-    disk:
-      name: jackaroo-data
-      mountPath: /data
-      sizeGB: 1
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

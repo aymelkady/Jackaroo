@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws';
 import { randomBytes, randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { Storage } from './storage.js';
+import { storageFromEnv } from './storage.js';
 import * as E from './engine.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -15,13 +15,14 @@ const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data', 'games');
 const BOT_DELAY_MS = Number(process.env.BOT_DELAY_MS ?? 900);
 
-const storage = new Storage(DATA_DIR);
+const storage = storageFromEnv(process.env, DATA_DIR);
 const games = new Map(); // code -> { state, tokens: {token -> playerId}, sockets: Set }
 
-function loadGame(code) {
+async function loadGame(code) {
   if (games.has(code)) return games.get(code);
-  const rec = storage.load(code);
+  const rec = await storage.load(code);
   if (!rec) return null;
+  if (games.has(code)) return games.get(code); // loaded concurrently
   const g = { state: rec.state, tokens: rec.tokens || {}, sockets: new Set(), botTimer: null };
   for (const p of g.state.players) if (!p.isBot) p.connected = false;
   games.set(code, g);
@@ -30,15 +31,18 @@ function loadGame(code) {
 
 function save(g) {
   g.state.updatedAt = Date.now();
-  storage.save(g.state.code, { state: g.state, tokens: g.tokens });
+  // write-behind: the in-memory copy is authoritative, the store is for restarts
+  g.saving = (g.saving || Promise.resolve())
+    .then(() => storage.save(g.state.code, { state: g.state, tokens: g.tokens }))
+    .catch((e) => console.error('save failed', g.state.code, e.message));
 }
 
-function newCode() {
+async function newCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for (;;) {
     let c = '';
     for (let i = 0; i < 5; i++) c += alphabet[randomInt(0, alphabet.length)];
-    if (!games.has(c) && !storage.exists(c)) return c;
+    if (!games.has(c) && !(await storage.exists(c))) return c;
   }
 }
 
@@ -95,9 +99,9 @@ function attach(g, ws, player, token) {
 }
 
 const handlers = {
-  create(ws, msg) {
+  async create(ws, msg) {
     const name = cleanName(msg.name);
-    const code = newCode();
+    const code = await newCode();
     const playerId = 'p' + randomBytes(6).toString('hex');
     const token = randomBytes(18).toString('hex');
     const state = E.createGame({ code, hostId: playerId, settings: msg.settings });
@@ -109,9 +113,9 @@ const handlers = {
     broadcast(g);
   },
 
-  join(ws, msg) {
+  async join(ws, msg) {
     const code = String(msg.code || '').trim().toUpperCase();
-    const g = loadGame(code);
+    const g = await loadGame(code);
     if (!g) throw new Error('No game with that code');
     const st = g.state;
     // 1) rejoin by token
@@ -138,8 +142,8 @@ const handlers = {
     save(g); broadcast(g);
   },
 
-  spectate(ws, msg) {
-    const g = loadGame(String(msg.code || '').trim().toUpperCase());
+  async spectate(ws, msg) {
+    const g = await loadGame(String(msg.code || '').trim().toUpperCase());
     if (!g) throw new Error('No game with that code');
     ws.game = g; ws.playerId = null; g.sockets.add(ws);
     broadcast(g);
@@ -262,8 +266,8 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
 app.get('/healthz', (req, res) => res.json({ ok: true, games: games.size }));
-app.get('/api/games/:code/fairness', (req, res) => {
-  const g = loadGame(String(req.params.code).toUpperCase());
+app.get('/api/games/:code/fairness', async (req, res) => {
+  const g = await loadGame(String(req.params.code).toUpperCase()).catch(() => null);
   if (!g) return res.status(404).json({ error: 'not found' });
   res.json({ current: g.state.deckCommit, revealed: g.state.deckHistory });
 });
@@ -275,14 +279,14 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', () => (ws.isAlive = true));
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(String(raw)); } catch { return sendTo(ws, { type: 'error', message: 'Bad JSON' }); }
     const h = handlers[msg.type];
     if (!h) return sendTo(ws, { type: 'error', message: `Unknown message ${msg.type}` });
     try {
       if (!['create', 'join', 'spectate'].includes(msg.type) && !ws.game) throw new Error('Join a game first');
-      h(ws, msg);
+      await h(ws, msg);
     } catch (e) {
       sendTo(ws, { type: 'error', message: e.message });
     }
@@ -303,4 +307,4 @@ const ping = setInterval(() => {
 }, 30000);
 wss.on('close', () => clearInterval(ping));
 
-server.listen(PORT, () => console.log(`Jackaroo listening on http://localhost:${PORT} (data: ${DATA_DIR})`));
+server.listen(PORT, () => console.log(`Jackaroo listening on http://localhost:${PORT} (storage: ${storage.describe()})`));

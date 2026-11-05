@@ -26,25 +26,43 @@ npm test            # rules engine tests
 
 Open the page, create a game, and share the link (`/g/CODE`) with your friends. Phones on the same Wi-Fi can reach your laptop by its LAN IP, e.g. `http://192.168.1.20:3000/g/CODE`.
 
-## Deploy it (free) so friends can join from anywhere
+## Put it online (free) and share the link
 
-The app is a single Node process with no database. Any host that runs Node and keeps a small disk works.
+The app is one Node process. It needs a host that runs Node and keeps a WebSocket open; a static host (GitHub Pages) is not enough. Everything below is free.
 
-**Render** (one click): this repo includes `render.yaml`. In Render choose *New → Blueprint*, point it at your fork, and deploy. The blueprint mounts a 1 GB disk at `/data` so games survive restarts. The free plan sleeps after inactivity; the first open may take ~30 s, and games are reloaded from disk when it wakes.
+### 1. Render (about 3 minutes)
 
-**Docker** (Fly.io, Railway, a VPS, a Raspberry Pi):
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/aymelkady/Jackaroo)
 
-```bash
-docker build -t jackaroo .
-docker run -p 3000:3000 -v jackaroo-data:/data -e DATA_DIR=/data jackaroo
-```
+1. Click the button (or in Render: **New + → Blueprint**, pick this repo). Sign in with GitHub, then **Apply**. The `render.yaml` in this repo sets everything up.
+2. When it finishes you get a URL like `https://jackaroo-xxxx.onrender.com`. That is the link to share. Open it, create a game, and send friends the `/g/CODE` link the lobby shows.
+
+Free-plan behaviour: the service sleeps after ~15 minutes with nobody connected and wakes on the next visit (first load takes ~30 s). While people are in a game the WebSocket keeps it awake. When it sleeps, games in memory and on its disk are lost, so add step 2 if you want games to survive that.
+
+### 2. Keep games across restarts: Upstash Redis (optional, free)
+
+1. Create a free database at [upstash.com](https://upstash.com) (Redis, any region near you).
+2. Copy its **REST URL** and **REST token** into the Render service's environment as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (Render asks for them when applying the blueprint; you can also add them later under *Environment*).
+3. Redeploy. The server log then says `storage: Upstash Redis`. Every game is saved there after every move and reloaded on demand, so a sleeping or redeployed server does not lose a table. Games expire after 30 days of inactivity.
+
+### Other hosts
+
+- **Docker** anywhere (Fly.io with `fly.toml`, Railway, Koyeb, a VPS, a Raspberry Pi):
+
+  ```bash
+  docker build -t jackaroo .
+  docker run -p 3000:3000 -v jackaroo-data:/data -e DATA_DIR=/data jackaroo
+  ```
+
+- **Your own laptop for a room full of friends**: `npm start`, then share `http://<your LAN IP>:3000`.
 
 Environment variables:
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
-| `DATA_DIR` | `./data/games` | where game files are stored |
+| `DATA_DIR` | `./data/games` | where game files are stored when Redis is not configured |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | unset | use Upstash Redis instead of files |
 | `BOT_DELAY_MS` | `900` | how long a bot "thinks" |
 
 ## How it is built
@@ -52,7 +70,7 @@ Environment variables:
 ```
 server/engine.js   pure rules engine: deck, dealing, legal moves, applying moves, win check, bot
 server/index.js    Express static server + WebSocket protocol + persistence + bots
-server/storage.js  atomic JSON file per game
+server/storage.js  persistence: JSON file per game, or Upstash Redis over REST
 public/            vanilla JS client, SVG board drawn for any player count
 test/              node:test suite for the engine (run: npm test)
 ```
