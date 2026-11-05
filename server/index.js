@@ -230,6 +230,18 @@ const handlers = {
     save(g); broadcast(g);
   },
 
+  react(ws, msg) {
+    const g = ws.game;
+    const p = g.state.players.find((x) => x.id === ws.playerId);
+    if (!p) throw new Error('Spectators cannot react');
+    const allowed = ['👏', '😂', '🔥', '😡', '🙏', '🎉', '😱', '🤝'];
+    if (!allowed.includes(msg.emoji)) return;
+    const now = Date.now();
+    if (p.lastReact && now - p.lastReact < 1500) return; // rate limit
+    p.lastReact = now;
+    for (const s of g.sockets) sendTo(s, { type: 'react', seat: p.seat, emoji: msg.emoji, name: p.name });
+  },
+
   leave(ws) {
     const g = ws.game;
     if (!g) return;

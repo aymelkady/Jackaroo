@@ -17,7 +17,8 @@
   let pendingJoin = null; // message to send once the socket opens
   let boardKey = '';      // geometry cache key
   let geo = null;
-  let lastMoveAt = 0, wasMyTurn = false;
+  let lastMoveAt = 0, wasMyTurn = false, lastDealNo = 0;
+  let prevPos = new Map(); // marble id -> {owner, zone, pos} as last rendered
 
   // ---------- storage ----------
   const store = {
@@ -83,6 +84,8 @@
         showError(msg.message);
       } else if (msg.type === 'kicked') {
         goHome('You were removed from the game.');
+      } else if (msg.type === 'react') {
+        showReaction(msg.seat, msg.emoji, msg.name);
       }
     };
   }
@@ -251,8 +254,8 @@
       <radialGradient id="holeGrad" cx="40%" cy="35%" r="65%"><stop offset="0" stop-color="#3a2614"/><stop offset=".6" stop-color="#1b110a"/><stop offset="1" stop-color="#4a3118"/></radialGradient>
       <linearGradient id="cardBack" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8e2b2b"/><stop offset="1" stop-color="#5a1414"/></linearGradient>
       <filter id="woodgrain" x="0" y="0" width="100%" height="100%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.006 0.09" numOctaves="4" seed="11" result="noise"/>
-        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.45  0 0 0 0 0.3  0 0 0 0 0.15  0 0 0 0.55 0" result="grain"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.004 0.13" numOctaves="5" seed="11" result="noise"/>
+        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.27  0 0 0 0 0.12  0 0 0 0.8 0" result="grain"/>
         <feComposite in="grain" in2="SourceGraphic" operator="in" result="clipped"/>
         <feBlend in="SourceGraphic" in2="clipped" mode="multiply"/>
       </filter>
@@ -310,7 +313,7 @@
       <rect id="discardCard" class="pile-face" x="${g.cx + 10}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
       <text id="discardTxt" class="pile-txt" x="${g.cx + 10 + cw / 2}" y="${py + ch / 2 + 8}"></text>
     </g>`;
-    h += `<g id="targets"></g><g id="marbles"></g>`;
+    h += `<circle id="turnRing" class="turn-ring" r="20" cx="-100" cy="-100"/><g id="targets"></g><g id="marbles"></g><g id="bubbles"></g>`;
     svg.innerHTML = h;
     svg.dataset.key = boardKey;
   }
@@ -330,6 +333,8 @@
   function tryCommit() {
     const cands = candidateMoves();
     if (cands.length === 1 && sel.picks.length >= cands[0].picks.length) {
+      const cardEl = $('hand').querySelector('.pcard.sel');
+      if (cardEl && cands[0].kind !== 'burn') flyCard(cardEl);
       send({ type: 'move', moveId: cands[0].id });
       sel = { cardId: null, picks: [] };
       return true;
@@ -373,6 +378,61 @@
     grp.innerHTML = h;
   }
 
+  function pathPoints(prev, m) {
+    // intermediate hole positions for a hop animation (forward or backward along the track, into the safe zone)
+    const g = geometry();
+    const L = g.L;
+    if (!prev || prev.zone === 'home' || m.zone === 'home') return null;
+    if (prev.zone === 'safe' && m.zone === 'safe') {
+      const pts = []; for (let k = prev.pos + 1; k <= m.pos; k++) pts.push(g.safe[m.owner][k]); return pts.length ? pts : null;
+    }
+    if (prev.zone !== 'track') return null;
+    if (m.zone === 'safe') {
+      const pts = []; for (let d = prev.pos + 1; d <= L - 1; d++) pts.push(g.track[(m.owner * g.cpp + d) % L]);
+      for (let k = 0; k <= m.pos; k++) pts.push(g.safe[m.owner][k]);
+      return pts.length <= 20 ? pts : null;
+    }
+    const fwd = (m.pos - prev.pos + L) % L, back = (prev.pos - m.pos + L) % L;
+    if (fwd >= 1 && fwd <= 13) { const pts = []; for (let k = 1; k <= fwd; k++) pts.push(g.track[(m.owner * g.cpp + prev.pos + k) % L]); return pts; }
+    if (back >= 1 && back <= 4) { const pts = []; for (let k = 1; k <= back; k++) pts.push(g.track[(m.owner * g.cpp + prev.pos - k + L) % L]); return pts; }
+    return null; // jack swap and other jumps: straight slide
+  }
+
+  function animateMarble(el, m, p) {
+    const prev = prevPos.get(m.id);
+    const target = `translate(${p.x}px, ${p.y}px)`;
+    const changed = prev && (prev.zone !== m.zone || prev.pos !== m.pos);
+    if (!changed || !prev) { el.style.transform = target; return; }
+    el.getAnimations().forEach((a) => a.cancel());
+    const from = marblePos(prev.zone === 'home' ? { ...m, zone: 'home' } : { ...m, zone: prev.zone, pos: prev.pos });
+    const fromT = `translate(${from.x}px, ${from.y}px)`;
+    el.style.transition = 'none';
+    if (m.zone === 'home' && prev.zone !== 'home') {
+      // killed: shrink away where it stood, then reappear at home
+      el.style.transform = fromT;
+      const a = el.animate([{ transform: `${fromT} scale(1)`, opacity: 1 }, { transform: `${fromT} scale(0)`, opacity: 0 }], { duration: 320, easing: 'ease-in' });
+      a.onfinish = () => { el.style.transform = target; el.animate([{ transform: `${target} scale(0)` }, { transform: `${target} scale(1)` }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
+      return;
+    }
+    const pts = pathPoints(prev, m);
+    if (pts) {
+      const frames = [{ transform: `${fromT} scale(1)` }];
+      let last = from;
+      for (const q of pts) {
+        frames.push({ transform: `translate(${(last.x + q.x) / 2}px, ${(last.y + q.y) / 2 - 6}px) scale(1.28)` });
+        frames.push({ transform: `translate(${q.x}px, ${q.y}px) scale(1)` });
+        last = q;
+      }
+      const dur = Math.min(1400, 70 + pts.length * 95);
+      el.style.transform = target;
+      el.animate(frames, { duration: dur, easing: 'linear' });
+      return;
+    }
+    // exit from home, swap, or anything else: smooth slide with a lift
+    el.style.transform = target;
+    el.animate([{ transform: `${fromT} scale(1)` }, { transform: `translate(${(from.x + p.x) / 2}px, ${(from.y + p.y) / 2}px) scale(1.35)` }, { transform: `${target} scale(1)` }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
+
   function renderMarbles() {
     const g = geometry();
     const grp = $('marbles');
@@ -397,13 +457,64 @@
         el.onmouseleave = () => { if (hoverMarble === m.id) { hoverMarble = null; renderTargets(); } };
         grp.appendChild(el);
       }
-      el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      animateMarble(el, m, p);
       el.classList.toggle('pick', pickSet.has(m.id));
       el.classList.toggle('last', last.has(m.id));
       existing.delete(m.id);
     }
     for (const el of existing.values()) el.remove();
     for (const id of picks) { const el = grp.querySelector(`g.marble[data-id="${id}"]`); if (el) grp.appendChild(el); }
+    prevPos = new Map(state.marbles.map((m) => [m.id, { owner: m.owner, zone: m.zone, pos: m.pos }]));
+  }
+
+  // ---------- reactions, confetti, card flight ----------
+  const EMOJIS = ['👏', '😂', '🔥', '😡', '🙏', '🎉', '😱', '🤝'];
+  function showReaction(seat, emoji, name) {
+    const g = state && state.phase !== 'lobby' ? geometry() : null;
+    const grp = $('bubbles');
+    if (g && grp) {
+      const lp = g.label[seat];
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('class', 'bubble'); t.setAttribute('x', lp.x); t.setAttribute('y', lp.y - 18);
+      t.style.transformOrigin = `${lp.x}px ${lp.y}px`; t.style.transformBox = 'view-box';
+      t.textContent = emoji;
+      grp.appendChild(t);
+      setTimeout(() => t.remove(), 2300);
+    }
+    const chat = $('chat');
+    if (chat) { chat.insertAdjacentHTML('beforeend', `<div><b>${esc(name)}</b> ${emoji}</div>`); chat.scrollTop = chat.scrollHeight; }
+    tone(520 + seat * 40, 0.08, 'sine', 0.05);
+  }
+  $('reactions').innerHTML = EMOJIS.map((e) => `<button type="button" data-e="${e}" title="react">${e}</button>`).join('');
+  $('reactions').querySelectorAll('button').forEach((b) => (b.onclick = () => send({ type: 'react', emoji: b.dataset.e })));
+
+  function confetti(ms = 3500) {
+    const c = $('confetti'); const ctx = c.getContext('2d');
+    c.width = innerWidth; c.height = innerHeight; c.classList.remove('hidden');
+    const cols = ['#ffd369', '#d8372a', '#2a6fd8', '#2f9a4a', '#fff', '#ff8a7a'];
+    const ps = Array.from({ length: 160 }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .5, vx: (Math.random() - .5) * 2, vy: 2 + Math.random() * 3.5, s: 6 + Math.random() * 8, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, col: cols[Math.floor(Math.random() * cols.length)] }));
+    const t0 = performance.now();
+    (function frame(t) {
+      ctx.clearRect(0, 0, c.width, c.height);
+      for (const p of ps) { p.x += p.vx; p.y += p.vy; p.r += p.vr; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.col; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); }
+      if (t - t0 < ms) requestAnimationFrame(frame); else { c.classList.add('hidden'); ctx.clearRect(0, 0, c.width, c.height); }
+    })(t0);
+  }
+
+  function flyCard(cardEl) {
+    const from = cardEl.getBoundingClientRect();
+    const pile = $('discardCard'); if (!pile) return;
+    const to = pile.getBoundingClientRect();
+    const clone = cardEl.cloneNode(true);
+    clone.classList.remove('sel'); clone.classList.add('flycard');
+    clone.style.left = from.left + 'px'; clone.style.top = from.top + 'px'; clone.style.width = from.width + 'px'; clone.style.height = from.height + 'px'; clone.style.margin = 0;
+    $('flyLayer').appendChild(clone);
+    requestAnimationFrame(() => {
+      const sx = to.width / from.width, sy = to.height / from.height;
+      clone.style.transform = `translate(${to.left - from.left + (to.width - from.width) / 2}px, ${to.top - from.top + (to.height - from.height) / 2}px) scale(${sx}, ${sy}) rotate(${(Math.random() - .5) * 20}deg)`;
+      clone.style.opacity = '0.2';
+    });
+    setTimeout(() => clone.remove(), 600);
   }
 
   function renderGame() {
@@ -420,6 +531,8 @@
     $('centerText').textContent = state.phase === 'finished' ? `Team ${TEAM_NAMES[state.winner]} wins` : (state.phase === 'playing' ? (myTurn ? 'Your turn' : `${nameOf(state.turn)}'s turn`) : '');
     $('centerSub').textContent = state.phase === 'finished' ? state.players.filter((p) => p.team === state.winner).map((p) => p.name).join(' & ') : `Deal ${state.dealNo}`;
     $('stockCnt').textContent = state.stockCount;
+    const ring = $('turnRing');
+    if (state.phase === 'playing') { const bp = geometry().track[(state.turn * geometry().cpp) % geometry().L]; ring.setAttribute('cx', bp.x); ring.setAttribute('cy', bp.y); ring.style.display = ''; } else ring.style.display = 'none';
     const dt = state.discardTop;
     $('discardCard').setAttribute('opacity', dt ? 1 : 0);
     $('discardTxt').textContent = dt ? (dt.rank === 'JOKER' ? '★' : dt.rank + SUIT[dt.suit]) : '';
@@ -429,7 +542,7 @@
     if (state.phase === 'finished') { banner.textContent = `Game over. Team ${TEAM_NAMES[state.winner]} wins!`; banner.className = 'turn-banner'; }
     else if (!you) { banner.textContent = `Watching. ${nameOf(state.turn)} to play.`; banner.className = 'turn-banner'; }
     else if (myTurn) { banner.textContent = you.controls !== mySeat ? `Your turn — you move ${nameOf(you.controls)}'s marbles` : 'Your turn'; banner.className = 'turn-banner mine'; }
-    else { banner.textContent = `${nameOf(state.turn)} is thinking…`; banner.className = 'turn-banner'; }
+    else { banner.textContent = `${nameOf(state.turn)} is thinking`; banner.className = 'turn-banner thinking'; }
 
     // players
     const pl = $('playersList');
@@ -450,10 +563,12 @@
     if (you && you.hand) {
       const playable = new Set((you.legalMoves || []).map((m) => m.cardId));
       const onlyBurn = (you.legalMoves || []).length > 0 && you.legalMoves.every((m) => m.kind === 'burn');
-      for (const c of you.hand) {
+      const fresh = state.dealNo !== lastDealNo;
+      you.hand.forEach((c, idx) => {
         const el = document.createElement('div');
         const red = c.suit === 'H' || c.suit === 'D';
-        el.className = 'pcard' + (red ? ' red' : '') + (c.rank === 'JOKER' ? ' joker' : '') + (sel.cardId === c.id ? ' sel' : '') + (myTurn && !playable.has(c.id) ? ' dead' : '');
+        if (fresh) { el.classList.add('dealin'); el.style.animationDelay = `${idx * 90}ms`; }
+        el.className += ' pcard' + (red ? ' red' : '') + (c.rank === 'JOKER' ? ' joker' : '') + (sel.cardId === c.id ? ' sel' : '') + (myTurn && !playable.has(c.id) ? ' dead' : '');
         el.title = HINT[c.rank] || '';
         el.innerHTML = c.rank === 'JOKER' ? `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>` : `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
         el.onclick = () => {
@@ -463,7 +578,7 @@
           if (!(sel.cardId && tryCommit())) renderGame();
         };
         hand.appendChild(el);
-      }
+      });
       if (onlyBurn && myTurn && !sel.cardId) { pr.innerHTML = '<b>No legal move.</b> Pick a card to burn.'; promptSet = true; }
     }
 
@@ -502,15 +617,17 @@
       if (lastMoveAt) {
         const txt = state.log.length ? state.log[state.log.length - 1].text : '';
         const killed = state.log.slice(-2).some((l) => /sends .* home/.test(l.text));
-        if (state.phase === 'finished') sfx.win();
+        if (state.phase === 'finished') { sfx.win(); confetti(); }
         else if (killed) sfx.kill();
         else if (/^Deal /.test(txt)) { sfx.move(); sfx.deal(); }
         else sfx.move();
+        for (const e of [$('discardCard'), $('discardTxt')]) { e.classList.remove('discard-pop'); void e.getBoundingClientRect(); e.classList.add('discard-pop'); }
       }
       lastMoveAt = state.lastMove.at;
     }
     if (myTurn && !wasMyTurn && lastMoveAt) sfx.turn();
     wasMyTurn = !!myTurn;
+    lastDealNo = state.dealNo;
   }
 
   async function sha256(text) {

@@ -161,3 +161,21 @@ dialog table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 
 dialog th, dialog td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 dialog th { color: var(--gold); white-space: nowrap; }
 dialog ul { font-size: 14px; padding-left: 18px; color: var(--muted); }
+
+/* ---- liveliness ---- */
+.reactions { display: flex; gap: 6px; flex-wrap: wrap; }
+.reactions button { font-size: 20px; padding: 4px 8px; min-height: 0; line-height: 1; border-radius: 999px; }
+.reactions button:active { transform: scale(1.2); }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+#flyLayer { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
+.flycard { position: fixed; transition: transform .55s cubic-bezier(.3,.7,.2,1), opacity .55s; will-change: transform; }
+.pcard.dealin { animation: dealin .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes dealin { from { transform: translateY(40px) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.bubble { font-size: 30px; text-anchor: middle; animation: bubble 2.2s ease-out forwards; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.4); stroke-width: 2px; }
+@keyframes bubble { 0% { opacity: 0; transform: translateY(10px) scale(.6); } 15% { opacity: 1; transform: translateY(0) scale(1.15); } 70% { opacity: 1; transform: translateY(-40px) scale(1); } 100% { opacity: 0; transform: translateY(-70px) scale(.9); } }
+.turn-ring { fill: none; stroke: #ffd369; stroke-width: 3; animation: ring 1.4s ease-in-out infinite; pointer-events: none; }
+@keyframes ring { 0% { stroke-opacity: .2; r: 16; } 50% { stroke-opacity: 1; } 100% { stroke-opacity: .2; r: 26; } }
+.thinking::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+.discard-pop { transform-box: fill-box; transform-origin: center; animation: pop .4s cubic-bezier(.2,.8,.2,1); }
+@keyframes pop { 0% { transform: scale(1.6) rotate(-12deg); opacity: .3; } 100% { transform: none; opacity: 1; } }
