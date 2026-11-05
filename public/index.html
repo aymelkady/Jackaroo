@@ -10,12 +10,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Jackaroo" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;600;700&display=swap" />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <header class="topbar">
@@ -23,7 +23,7 @@
     <div id="topInfo" class="topinfo"></div>
     <div class="topright">
       <button id="btnSound" class="icon" title="Sound">🔊</button>
-      <span id="connDot" class="dot" title="connection"></span>
+      <span id="netStatus" class="netstatus"></span><span id="connDot" class="dot" title="connection"></span>
       <button id="btnRules" class="link">Rules</button>
     </div>
   </header>
@@ -63,6 +63,7 @@
         </div>
       </div>
       <p id="homeError" class="error"></p>
+      <p id="p2pNote" class="muted small hidden">No server needed: whoever creates the game hosts it in their own browser and the others connect to them directly. The host keeps their page open; if they close it, the table pauses until they open the link again.</p>
       <p id="installHint" class="muted small hidden">Tip: on a phone, add this page to your home screen to play it like an app.</p>
     </div>
   </section>
@@ -152,6 +153,8 @@
 
   <canvas id="confetti" class="confetti hidden"></canvas>
   <div id="flyLayer"></div>
-  <script src="/app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./vendor/peerjs.min.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

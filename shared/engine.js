@@ -1,8 +1,8 @@
-// Jackaroo rules engine. Pure functions over a plain JSON state object.
+// Jackaroo rules engine. Pure functions over a plain JSON state object. Runs in Node and in browsers.
 // The server is the only authority: it shuffles, deals, enumerates legal moves
 // and applies the move the player picked. Clients never compute rules.
 
-import { createHash, randomBytes, randomInt } from 'node:crypto';
+import { sha256Hex, randomHex, randomInt } from './rng.js';
 
 export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 export const SUITS = ['S', 'H', 'D', 'C'];
@@ -66,8 +66,8 @@ export function deckString(deck) {
 }
 
 export function commitDeck(deck) {
-  const salt = randomBytes(16).toString('hex');
-  const hash = createHash('sha256').update(`${salt}:${deckString(deck)}`).digest('hex');
+  const salt = randomHex(16);
+  const hash = sha256Hex(`${salt}:${deckString(deck)}`);
   return { salt, hash };
 }
 

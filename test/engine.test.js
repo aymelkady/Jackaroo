@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as E from '../server/engine.js';
+import * as E from '../shared/engine.js';
 
 function game(players = 4, extra = {}) {
   const st = E.createGame({ code: 'TEST1', hostId: 'p0', settings: { players, randomTeams: false, ...extra } });

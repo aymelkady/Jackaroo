@@ -4,6 +4,7 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY server ./server
+COPY shared ./shared
 COPY public ./public
 ENV PORT=3000 DATA_DIR=/data
 VOLUME ["/data"]

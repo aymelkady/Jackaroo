@@ -9,12 +9,10 @@
     10: 'Move 10', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card',
   };
 
-  let ws = null, wsReady = false, retry = 0;
   let code = null, token = null, playerId = null;
   let state = null, you = null;
   let sel = { cardId: null, picks: [] };
   let hoverMarble = null;
-  let pendingJoin = null; // message to send once the socket opens
   let boardKey = '';      // geometry cache key
   let geo = null;
   let lastMoveAt = 0, wasMyTurn = false, lastDealNo = 0;
@@ -57,42 +55,59 @@
   $('btnSound').textContent = store.sound ? '🔊' : '🔇';
   $('btnSound').onclick = () => { store.sound = !store.sound; $('btnSound').textContent = store.sound ? '🔊' : '🔇'; if (store.sound) sfx.move(); };
 
-  // ---------- socket ----------
-  function connect() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}/ws`);
-    ws.onopen = () => {
-      wsReady = true; retry = 0; $('connDot').className = 'dot on';
-      if (pendingJoin) { ws.send(JSON.stringify(pendingJoin)); pendingJoin = null; }
-      else if (code && token) ws.send(JSON.stringify({ type: 'join', code, token, name: store.name || 'Player' }));
-    };
-    ws.onclose = () => {
-      wsReady = false; $('connDot').className = 'dot off';
-      const wait = Math.min(8000, 500 * 2 ** retry++);
-      setTimeout(connect, wait);
-    };
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === 'joined') {
-        code = msg.code; token = msg.token; playerId = msg.playerId;
-        store.setToken(code, token);
-        history.replaceState(null, '', '/g/' + code);
-      } else if (msg.type === 'state') {
-        state = msg.state; you = msg.you;
-        render();
-      } else if (msg.type === 'error') {
-        showError(msg.message);
-      } else if (msg.type === 'kicked') {
-        goHome('You were removed from the game.');
-      } else if (msg.type === 'react') {
-        showReaction(msg.seat, msg.emoji, msg.name);
-      }
-    };
+  // ---------- transport: WebSocket to the Node server, or peer-to-peer when hosted statically ----------
+  const MODE = window.JK_MODE === 'server' ? 'server' : 'p2p';
+  let transport = null;
+  let pendingJoin = null; // message to send once the connection opens
+  function setStatus(state, text) {
+    $('connDot').className = 'dot ' + (state === 'on' ? 'on' : state === 'wait' ? '' : 'off');
+    $('netStatus').textContent = text || '';
+  }
+  function onOpen() {
+    if (pendingJoin) { const m = pendingJoin; pendingJoin = null; transport.send(m); }
+    else if (code && token) transport.send({ type: 'join', code, token, name: store.name || 'Player' });
+  }
+  function onMessage(msg) {
+    if (msg.type === 'joined') {
+      code = msg.code; token = msg.token; playerId = msg.playerId;
+      store.setToken(code, token);
+      history.replaceState(null, '', '?g=' + code);
+    } else if (msg.type === 'state') {
+      state = msg.state; you = msg.you;
+      render();
+    } else if (msg.type === 'error') {
+      showError(msg.message);
+    } else if (msg.type === 'kicked') {
+      goHome('You were removed from the game.');
+    } else if (msg.type === 'react') {
+      showReaction(msg.seat, msg.emoji, msg.name);
+    }
+  }
+  class WsTransport {
+    constructor() { this.retry = 0; this.ready = false; this.connect(); }
+    connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${proto}://${location.host}/ws`);
+      this.ws = ws;
+      ws.onopen = () => { this.ready = true; this.retry = 0; setStatus('on'); onOpen(); };
+      ws.onclose = () => { this.ready = false; setStatus('off', 'Reconnecting…'); setTimeout(() => this.connect(), Math.min(8000, 500 * 2 ** this.retry++)); };
+      ws.onmessage = (ev) => onMessage(JSON.parse(ev.data));
+    }
+    send(msg) { if (this.ready) this.ws.send(JSON.stringify(msg)); else pendingJoin = msg; }
+    get isHost() { return false; }
+  }
+  async function startTransport() {
+    if (MODE === 'server') { transport = new WsTransport(); return; }
+    const { P2PTransport } = await import('./p2p.js');
+    transport = new P2PTransport({ onMessage, onStatus: setStatus, onOpen });
+    setStatus('on', '');
+    if (code && token) transport.send({ type: 'join', code, token, name: store.name || 'Player' });
   }
   function send(msg) {
-    if (wsReady) ws.send(JSON.stringify(msg));
-    else pendingJoin = msg;
+    if (!transport) { pendingJoin = msg; return; }
+    transport.send(msg);
   }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && transport && transport.ws && transport.ws.readyState > 1) transport.connect(); });
 
   function showError(text) {
     const el = state ? (state.phase === 'lobby' ? $('lobbyError') : $('gameError')) : $('homeError');
@@ -102,7 +117,7 @@
 
   function goHome(msg) {
     state = null; you = null; code = null; token = null;
-    history.replaceState(null, '', '/');
+    history.replaceState(null, '', location.pathname);
     showScreen('Home');
     if (msg) showError(msg);
     renderRecent();
@@ -115,7 +130,7 @@
   // ---------- home ----------
   function renderRecent() {
     const r = store.recent;
-    $('recent').innerHTML = r.length ? 'Recent games: ' + r.map((c) => `<a href="/g/${c}">${c}</a>`).join('') : '';
+    $('recent').innerHTML = r.length ? 'Recent games: ' + r.map((c) => `<a href="?g=${c}">${c}</a>`).join('') : '';
   }
   $('name').value = store.name;
   $('btnCreate').onclick = () => {
@@ -151,7 +166,7 @@
     const n = state.settings.players;
     const isHost = state.hostId === playerId;
     $('lobbyCode').textContent = state.code;
-    const link = `${location.origin}/g/${state.code}`;
+    const link = `${location.origin}${location.pathname.replace(/index\.html$/, '')}?g=${state.code}`;
     $('shareLink').href = link; $('shareLink').textContent = link;
     const grid = $('seatGrid');
     grid.innerHTML = '';
@@ -190,7 +205,7 @@
     $('btnStart').disabled = !full;
     $('btnShuffle').classList.toggle('hidden', !isHost);
     $('btnAddBot').classList.toggle('hidden', !isHost || full);
-    $('lobbyHint').textContent = full ? (isHost ? 'Everyone is in. Start when ready.' : 'Waiting for the host to start.') : `Waiting for ${n - state.players.length} more player(s). ${s.randomTeams ? 'Seats will be shuffled at start.' : 'Tap a seat to choose your partner (partners sit opposite).'}`;
+    $('lobbyHint').textContent = (full ? (isHost ? 'Everyone is in. Start when ready.' : 'Waiting for the host to start.') : `Waiting for ${n - state.players.length} more player(s). ${s.randomTeams ? 'Seats will be shuffled at start.' : 'Tap a seat to choose your partner (partners sit opposite).'}`) + (MODE === 'p2p' && isHost ? ' This table runs in your browser: keep this page open while you play.' : '');
   }
 
   // ---------- colors ----------
@@ -663,14 +678,15 @@
 
   // ---------- boot ----------
   renderRecent();
-  const m = location.pathname.match(/^\/g\/([A-Za-z0-9]{3,12})/);
-  if (m) {
-    const c = m[1].toUpperCase();
+  const qg = new URLSearchParams(location.search).get('g') || (location.pathname.match(/\/g\/([A-Za-z0-9]{3,12})/) || [])[1];
+  if (qg) {
+    const c = qg.toUpperCase();
     $('code').value = c;
     const t = store.token(c);
     if (t) { code = c; token = t; } // auto-rejoin on open
   }
   if (/iphone|ipad|android/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches) $('installHint').classList.remove('hidden');
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
-  connect();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if (MODE === 'p2p') $('p2pNote').classList.remove('hidden');
+  startTransport();
 })();

@@ -26,24 +26,36 @@ npm test            # rules engine tests
 
 Open the page, create a game, and share the link (`/g/CODE`) with your friends. Phones on the same Wi-Fi can reach your laptop by its LAN IP, e.g. `http://192.168.1.20:3000/g/CODE`.
 
-## Put it online (free) and share the link
+## Play it now: the public link
 
-The app is one Node process. It needs a host that runs Node and keeps a WebSocket open; a static host (GitHub Pages) is not enough. Everything below is free.
+**https://aymelkady.github.io/Jackaroo/**
 
-### 1. Render (about 3 minutes)
+That page is published automatically from this repository by GitHub Pages on every push, and it needs no server at all: the person who creates a game **hosts the table inside their own browser**, and the others connect to that browser directly over WebRTC (peer-to-peer, signalled through the public PeerJS service, with a free TURN relay for phones on different mobile networks). Share the `?g=CODE` link the lobby shows.
+
+What that means in practice:
+
+- The host keeps their page open while you play. If they close it, the table pauses; when they open the same link again their browser re-hosts the saved game and everyone reconnects.
+- The game is saved in the host's browser (localStorage) after every move. Other players reconnect with the same name or the same device.
+- The fairness guarantees are the same as the server version (cryptographic shuffle, hands only sent to their owner, server-side validation of every move, SHA-256 deck commitments), with one honest caveat: the host's browser is the referee, so a host who opens developer tools could read the other hands. Among friends that is fine; for strangers, run the Node server instead.
+
+## Run your own server (optional)
+
+The same code runs as a classic client/server app (`server/`), which is better for strangers or flaky networks. The app is one Node process with a WebSocket; it needs a host that runs Node (not a static host). Everything below is free.
+
+### Render (about 3 minutes)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/aymelkady/Jackaroo)
 
 1. Click the button (or in Render: **New + → Blueprint**, pick this repo). Sign in with GitHub, then **Apply**. The `render.yaml` in this repo sets everything up.
-2. When it finishes you get a URL like `https://jackaroo-xxxx.onrender.com`. That is the link to share. Open it, create a game, and send friends the `/g/CODE` link the lobby shows.
+2. You get a URL like `https://jackaroo-xxxx.onrender.com`. Open it, create a game, send friends the link the lobby shows.
 
-Free-plan behaviour: the service sleeps after ~15 minutes with nobody connected and wakes on the next visit (first load takes ~30 s). While people are in a game the WebSocket keeps it awake. When it sleeps, games in memory and on its disk are lost, so add step 2 if you want games to survive that.
+Free-plan behaviour: the service sleeps after ~15 minutes with nobody connected and wakes on the next visit. While people are in a game the WebSocket keeps it awake. When it sleeps, games in memory and on its disk are lost, so add Upstash if you want games to survive that.
 
-### 2. Keep games across restarts: Upstash Redis (optional, free)
+### Keep games across restarts: Upstash Redis (optional, free)
 
 1. Create a free database at [upstash.com](https://upstash.com) (Redis, any region near you).
-2. Copy its **REST URL** and **REST token** into the Render service's environment as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (Render asks for them when applying the blueprint; you can also add them later under *Environment*).
-3. Redeploy. The server log then says `storage: Upstash Redis`. Every game is saved there after every move and reloaded on demand, so a sleeping or redeployed server does not lose a table. Games expire after 30 days of inactivity.
+2. Put its **REST URL** and **REST token** into the Render service's environment as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+3. Redeploy. Every game is saved there after every move. Games expire after 30 days of inactivity.
 
 ### Other hosts
 
@@ -55,8 +67,9 @@ Free-plan behaviour: the service sleeps after ~15 minutes with nobody connected 
   ```
 
 - **Your own laptop for a room full of friends**: `npm start`, then share `http://<your LAN IP>:3000`.
+- **Any static host** (Netlify, Cloudflare Pages, S3...): `sh scripts/build-pages.sh` and upload `dist/`; that is the same serverless build GitHub Pages uses.
 
-Environment variables:
+Environment variables (server mode):
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -68,14 +81,17 @@ Environment variables:
 ## How it is built
 
 ```
-server/engine.js   pure rules engine: deck, dealing, legal moves, applying moves, win check, bot
-server/index.js    Express static server + WebSocket protocol + persistence + bots
-server/storage.js  persistence: JSON file per game, or Upstash Redis over REST
-public/            vanilla JS client, SVG board drawn for any player count
-test/              node:test suite for the engine (run: npm test)
+shared/engine.js   pure rules engine: deck, dealing, legal moves, applying moves, win check, bot (Node + browser)
+shared/host.js     GameHost: lobby, protocol, bots, reconnection, persistence (transport-agnostic)
+shared/rng.js      Web Crypto randomness + synchronous SHA-256 (works in Node and browsers)
+server/index.js    Node server: Express static + WebSocket wired to GameHost
+server/storage.js  server persistence: JSON file per game, or Upstash Redis over REST
+public/            vanilla JS client, SVG board for any player count, p2p.js (serverless host/client)
+scripts/, .github/ static build for GitHub Pages, CI
+test/              node:test suite (run: npm test)
 ```
 
-The client never computes rules. For the player whose turn it is, the server sends the list of **legal moves**, each with the sequence of taps needed (card → marble → option → second marble). The client only filters that list as you tap and sends back the chosen move id. The server re-validates every move against the current state, so a modified client cannot cheat.
+The client never computes rules. For the player whose turn it is, the host (server or hosting browser) sends the list of **legal moves**, each with the sequence of taps needed (card → marble → option → second marble). The client only filters that list as you tap and sends back the chosen move id. The server re-validates every move against the current state, so a modified client cannot cheat.
 
 ### WebSocket protocol (client → server)
 

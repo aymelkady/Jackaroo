@@ -4,3 +4,4 @@ data/games/*
 .env
 *.log
 .DS_Store
+dist/

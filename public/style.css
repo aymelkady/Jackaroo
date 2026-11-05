@@ -179,3 +179,4 @@ dialog ul { font-size: 14px; padding-left: 18px; color: var(--muted); }
 @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 .discard-pop { transform-box: fill-box; transform-origin: center; animation: pop .4s cubic-bezier(.2,.8,.2,1); }
 @keyframes pop { 0% { transform: scale(1.6) rotate(-12deg); opacity: .3; } 100% { transform: none; opacity: 1; } }
+.netstatus { font-size: 12px; color: var(--muted); max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
