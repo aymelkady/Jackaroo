@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Jackaroo</title>
   <meta name="description" content="Jackaroo board game: play live with friends in teams of two (4, 6 or 8 players)." />
-  <meta name="theme-color" content="#1b2a1f" />
+  <meta name="theme-color" content="#0f1a14" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,73 +14,72 @@
   <link rel="apple-touch-icon" href="./icons/icon-180.png" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;600;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@600;700&family=Nunito:wght@500;700;800&display=swap" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">Jackaroo</div>
-    <div id="topInfo" class="topinfo"></div>
     <div class="topright">
-      <button id="btnZoom" class="icon" title="Zoom board">🔍</button>
-      <button id="btnSound" class="icon" title="Sound">🔊</button>
       <span id="netStatus" class="netstatus"></span><span id="connDot" class="dot" title="connection"></span>
-      <button id="btnDesign" class="link">Board</button>
-      <button id="btnRules" class="link">Rules</button>
+      <button id="btnRulesTop" class="link">Rules</button>
     </div>
   </header>
 
-  <!-- HOME -->
-  <section id="screenHome" class="screen">
-    <div class="card-panel">
-      <div class="hero">
-        <div class="hero-marbles"><span class="hm red"></span><span class="hm blue"></span><span class="hm green"></span><span class="hm gold"></span></div>
-        <h1>Play Jackaroo with your friends</h1>
-        <p class="muted">Everyone opens this page, enters a name and joins the same game code. Teams of two, partners sit opposite. The server shuffles with a cryptographic random generator and nobody, including the host, can see anyone else's cards.</p>
+  <!-- HOME: title screen -->
+  <section id="screenHome" class="screen home">
+    <div class="home-art" aria-hidden="true"><svg id="homeArt" viewBox="-30 -30 1060 1060"></svg></div>
+    <div class="home-card">
+      <div class="title-block">
+        <div class="title-marbles"><span class="hm red"></span><span class="hm blue"></span><span class="hm green"></span><span class="hm gold"></span></div>
+        <h1 class="game-title">Jackaroo</h1>
+        <p class="tagline">Marbles, cards and partners. Four, six or eight players at one table.</p>
       </div>
       <label>Your name <input id="name" maxlength="20" placeholder="e.g. Ahmed" autocomplete="nickname" /></label>
-
       <div class="two-col">
         <div class="box">
-          <h2>Create a game</h2>
+          <h2>New table</h2>
           <label>Players
             <select id="players">
-              <option value="4">4 players (2 teams)</option>
-              <option value="6">6 players (3 teams)</option>
-              <option value="8">8 players (4 teams)</option>
+              <option value="4">4 players · 2 teams</option>
+              <option value="6">6 players · 3 teams</option>
+              <option value="8">8 players · 4 teams</option>
             </select>
           </label>
-          <label class="chk"><input type="checkbox" id="optRandomTeams" checked /> Random teams when the game starts</label>
-          <label class="chk"><input type="checkbox" id="optKing" checked /> King may move 13 and kill everything on the way</label>
-          <label class="chk"><input type="checkbox" id="optFive" checked /> 5 may move any marble on the track (even opponents)</label>
-          <label class="chk"><input type="checkbox" id="optJumpOwn" /> Marbles may jump over your own marbles (most tables: no)</label>
-          <label class="chk"><input type="checkbox" id="optComplex" checked /> Black Jack swaps, red Jack moves 11; red Queen and 10 can make the next player burn</label>
-          <label class="chk"><input type="checkbox" id="optJokers" /> Add jokers (a joker plays as any card)</label>
-          <button id="btnCreate" class="primary">Create game</button>
+          <details class="opts">
+            <summary>House rules</summary>
+            <label class="chk"><input type="checkbox" id="optRandomTeams" checked /> Random teams at start</label>
+            <label class="chk"><input type="checkbox" id="optKing" checked /> King may move 13 and kill on the way</label>
+            <label class="chk"><input type="checkbox" id="optFive" checked /> 5 may move any marble, even opponents</label>
+            <label class="chk"><input type="checkbox" id="optComplex" checked /> Black Jack swaps, red Jack 11; red Queen and 10 can burn</label>
+            <label class="chk"><input type="checkbox" id="optJumpOwn" /> May jump over your own marbles</label>
+            <label class="chk"><input type="checkbox" id="optJokers" /> Add jokers (play as any card)</label>
+          </details>
+          <button id="btnCreate" class="primary big">Create table</button>
         </div>
         <div class="box">
-          <h2>Join a game</h2>
-          <label>Game code <input id="code" maxlength="5" placeholder="ABCDE" autocapitalize="characters" /></label>
-          <button id="btnJoin" class="primary">Join</button>
+          <h2>Join a table</h2>
+          <label>Table code <input id="code" maxlength="5" placeholder="ABCDE" autocapitalize="characters" /></label>
+          <button id="btnJoin" class="primary big">Join</button>
           <button id="btnWatch" class="link">Just watch</button>
           <div id="recent" class="recent"></div>
         </div>
       </div>
       <p id="homeError" class="error"></p>
-      <p id="p2pNote" class="muted small hidden">No server needed: whoever creates the game hosts it in their own browser and the others connect to them directly. The host keeps their page open; if they close it, the table pauses until they open the link again.</p>
-      <p id="installHint" class="muted small hidden">Tip: on a phone, add this page to your home screen to play it like an app.</p>
+      <p id="p2pNote" class="muted small hidden">No server needed: whoever creates the table hosts it in their own browser and the others connect to them directly. The host keeps the page open; if they close it, the table pauses until they open the link again.</p>
+      <p id="installHint" class="muted small hidden">Tip: add this page to your home screen to play it like an app.</p>
     </div>
   </section>
 
   <!-- LOBBY -->
   <section id="screenLobby" class="screen hidden">
-    <div class="card-panel">
-      <h1>Lobby <span id="lobbyCode" class="code"></span></h1>
-      <p class="muted">Share this link with your friends: <a id="shareLink" href="#"></a> <button id="btnCopy" class="link">copy</button> <button id="btnShare" class="link hidden">share…</button></p>
+    <div class="home-card">
+      <h1>Table <span id="lobbyCode" class="code"></span></h1>
+      <p class="muted">Send this link to your friends: <a id="shareLink" href="#"></a> <button id="btnCopy" class="link">copy</button> <button id="btnShare" class="link hidden">share…</button></p>
       <div id="seatGrid" class="seat-grid"></div>
       <div id="lobbySettings" class="settings"></div>
       <div class="row">
-        <button id="btnStart" class="primary">Start game</button>
+        <button id="btnStart" class="primary big">Start game</button>
         <button id="btnShuffle" class="secondary">Shuffle seats</button>
         <button id="btnAddBot" class="secondary">Add a bot</button>
         <button id="btnLeave" class="link">Leave</button>
@@ -90,40 +89,59 @@
     </div>
   </section>
 
-  <!-- GAME -->
+  <!-- GAME: the table -->
   <section id="screenGame" class="screen game hidden">
-    <div class="game-layout">
-      <div class="side-top">
-        <div id="turnBanner" class="turn-banner"></div>
-        <div id="prompt" class="prompt"></div>
-        <div id="hand" class="hand"></div>
-        <div id="gameError" class="error"></div>
+    <div class="hud">
+      <div class="hud-left">
+        <button id="btnHome" class="hbtn" title="Leave table">⌂</button>
+        <span id="hudCode" class="code-pill"></span>
       </div>
+      <div class="hud-right">
+        <button id="btnZoom" class="hbtn" title="Zoom board">🔍</button>
+        <button id="btnSound" class="hbtn" title="Sound">🔊</button>
+        <button id="btnDesign" class="hbtn" title="Board design">🎨</button>
+        <button id="btnPanel" class="hbtn" title="Log and chat">💬<span id="chatBadge" class="badge hidden"></span></button>
+        <button id="btnRules" class="hbtn" title="Rules">?</button>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
       <div class="board-wrap">
-        <svg id="board" viewBox="-30 -30 1060 1060" aria-label="Jackaroo board"></svg>
+        <div class="board-stage">
+          <svg id="board" viewBox="-30 -30 1060 1060" aria-label="Jackaroo board"></svg>
+          <div id="seats" class="seats"></div>
+        </div>
       </div>
-      <aside class="side-rest">
-        <div id="playersList" class="players"></div>
+      <div id="toasts" class="toasts"></div>
+    </div>
+
+    <div class="side-top">
+      <div id="turnBanner" class="turn-banner"></div>
+      <div id="prompt" class="prompt"></div>
+      <div class="hand-row">
+        <div id="hand" class="hand"></div>
         <div id="reactions" class="reactions"></div>
-        <details open>
-          <summary>Log</summary>
-          <div id="log" class="log"></div>
-        </details>
-        <details>
-          <summary>Chat</summary>
+      </div>
+      <div id="gameError" class="error"></div>
+    </div>
+
+    <aside id="panel" class="panel hidden">
+      <div class="panel-tabs">
+        <button class="tab sel" data-tab="log">Log</button>
+        <button class="tab" data-tab="chat">Chat</button>
+        <button class="tab" data-tab="fair">Fairness</button>
+        <button id="btnPanelClose" class="hbtn" title="Close">✕</button>
+      </div>
+      <div class="panel-body">
+        <div id="tabLog" class="tabpane"><div id="log" class="log"></div></div>
+        <div id="tabChat" class="tabpane hidden">
           <div id="chat" class="chat"></div>
           <form id="chatForm" class="row"><input id="chatInput" maxlength="200" placeholder="Say something" /><button class="secondary">Send</button></form>
-        </details>
-        <details>
-          <summary>Fairness check</summary>
-          <div id="fairness" class="fairness"></div>
-        </details>
-        <div class="row">
-          <button id="btnRematch" class="primary hidden">Play again</button>
-          <button id="btnHome" class="link">Home</button>
         </div>
-      </aside>
-    </div>
+        <div id="tabFair" class="tabpane hidden"><div id="fairness" class="fairness"></div></div>
+      </div>
+      <div class="panel-foot"><button id="btnRematch" class="primary hidden">Play again</button></div>
+    </aside>
   </section>
 
   <!-- RULES -->
@@ -149,7 +167,7 @@
         <li>Taking a marble out kills whatever is sitting on your base.</li>
         <li>The safe zone branches off the hole just before your base, so your base is never in the way. You enter your safe zone after a full lap. Backing up 4 from your base and then moving forward enters it early. No jumping over marbles inside the safe zone; the card must fit exactly.</li>
         <li>When all your marbles are safe you keep playing cards, moving your partner's marbles.</li>
-        <li>The holes are numbered 1–18 from each base so you can count a move. When you pick a card, the holes you can reach light up.</li>
+        <li>The holes are numbered 1–18 from each base so you can count a move. When you pick a card, the holes you can reach light up; tap a lit hole or the marble.</li>
         <li>Deal: 5 cards each from a fresh deck, then 4 each. A second deck is used for 6 and 8 players. The shuffled order is committed with a SHA-256 hash before the first card is dealt and revealed when the deck is used up.</li>
       </ul>
       <form method="dialog"><button class="primary">Close</button></form>
