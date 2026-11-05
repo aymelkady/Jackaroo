@@ -18,6 +18,8 @@ board game, in the GitHub repo `aymelkady/Jackaroo`, default and working branch 
   **FIRST ACTION: show him the current screenshots and ask if the board is right now; then ask for his Render
   URL.** Earlier client versions, if he wants something back: `643fd61` (motion pass, ring-track boards).
 - Never add a Co-Authored-By trailer or session link to commits. Commit as `aymelkady <aymelkady@gmail.com>`.
+- Model routing he asked for: write code with an **Opus 5.5** subagent, do git operations (commit, push,
+  branch checks) with a **Haiku** subagent; the main session verifies (tests, screenshots) and reports.
 - He will not do manual steps; he wants it tested and published by you. He cannot watch you work, so finish
   the whole job and report outcomes plainly (what passed, what failed).
 - Do not add chat. He had it removed. Emoji reactions stay (behind the smiley HUD button).
