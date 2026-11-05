@@ -28,14 +28,14 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 | **J** | Swap one of your marbles on the track with any other player's marble on the track (partner included). Marbles standing on their own base, in a safe zone or at home cannot be swapped. |
 | **10, 9, 8, 6, 3, 2** | Move that many steps. |
 | **7** | Move 7, or split the 7 between two of your marbles in any way (1+6, 2+5, 3+4 and so on). Each part must be legal on its own, in order. |
-| **5** | Move a marble on the track 5 steps. With the option *5 moves any marble* (default on) you may move **any** player's marble, including an opponent's; a marble moved by someone else can never enter its safe zone this way. |
+| **5** | Move any marble on the track 5 steps: yours, your partner's or an opponent's (option *5 moves any marble*, default on). A marble moved by someone else cannot be pushed into its safe zone. |
 | **4** | Move 4 steps **backwards**. |
 | **Joker** | Plays as any card above (option, default off). |
 
 ## Movement, killing and protection
 
 - Landing on another marble sends it home (**kill**). This applies to partner marbles too. You cannot land on your own marble.
-- You may jump over marbles on the track, except a marble standing on **its own base**: that marble cannot be passed, killed or swapped, not even by a King.
+- You may jump over other players' marbles on the track (partner included), but **not over your own marbles** (option *may jump own marbles*, default off). A marble standing on **its own base** cannot be passed, killed or swapped by anyone, not even by a King.
 - Taking a marble out kills whatever other player's marble is sitting on your base. You cannot take a marble out while your own marble is on your base.
 - Moving backwards with a 4 can pass and kill the same way (a marble on its own base still blocks).
 

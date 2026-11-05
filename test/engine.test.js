@@ -89,6 +89,29 @@ test('a marble on its own base cannot be passed, even by a King', () => {
   assert.ok(lm.some((m) => m.rank === '8' && m.to.pos === 18));          // 10+8 = 18, stops before
 });
 
+test('a marble cannot jump over another marble of the same player (jumpOwn off by default)', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 5);
+  put(st, 0, 1, 'track', 8);          // own marble 3 ahead
+  put(st, 2, 0, 'track', 10 - 38 + 76); // partner marble at abs 10 (may be jumped)
+  setHand(st, 0, ['6', 'K', '2']);
+  let lm = moves(st, 0);
+  assert.ok(!lm.some((m) => m.marbleId === 'm0_0' && m.rank === '6'));      // 5 -> 11 passes own at 8
+  assert.ok(!lm.some((m) => m.marbleId === 'm0_0' && m.kind === 'king'));   // King may not jump own either
+  assert.ok(lm.some((m) => m.marbleId === 'm0_0' && m.rank === '2'));       // 5 -> 7 is fine
+  assert.ok(lm.some((m) => m.marbleId === 'm0_1' && m.rank === '6'));       // 8 -> 14 passes partner at 10: allowed
+  // backwards too
+  setHand(st, 0, ['4']);
+  put(st, 0, 1, 'track', 3);
+  lm = moves(st, 0);
+  assert.ok(!lm.some((m) => m.marbleId === 'm0_0' && m.kind === 'back')); // 5 -> 1 passes own at 3
+  // with the option on, jumping is allowed again
+  const st2 = game(4, { jumpOwn: true });
+  put(st2, 0, 0, 'track', 5); put(st2, 0, 1, 'track', 8);
+  setHand(st2, 0, ['6']);
+  assert.ok(moves(st2, 0).some((m) => m.marbleId === 'm0_0' && m.rank === '6'));
+});
+
 test('landing on a marble sends it home; landing on own marble is illegal', () => {
   const st = game(4);
   put(st, 0, 0, 'track', 5);

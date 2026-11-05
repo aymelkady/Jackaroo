@@ -22,8 +22,10 @@
     <div class="brand">Jackaroo</div>
     <div id="topInfo" class="topinfo"></div>
     <div class="topright">
+      <button id="btnZoom" class="icon" title="Zoom board">🔍</button>
       <button id="btnSound" class="icon" title="Sound">🔊</button>
       <span id="netStatus" class="netstatus"></span><span id="connDot" class="dot" title="connection"></span>
+      <button id="btnDesign" class="link">Board</button>
       <button id="btnRules" class="link">Rules</button>
     </div>
   </header>
@@ -51,6 +53,7 @@
           <label class="chk"><input type="checkbox" id="optRandomTeams" checked /> Random teams when the game starts</label>
           <label class="chk"><input type="checkbox" id="optKing" checked /> King may move 13 and kill everything on the way</label>
           <label class="chk"><input type="checkbox" id="optFive" checked /> 5 may move any marble on the track (even opponents)</label>
+          <label class="chk"><input type="checkbox" id="optJumpOwn" /> Marbles may jump over your own marbles (most tables: no)</label>
           <label class="chk"><input type="checkbox" id="optJokers" /> Add jokers (a joker plays as any card)</label>
           <button id="btnCreate" class="primary">Create game</button>
         </div>
@@ -139,7 +142,7 @@
         <tr><th>Joker</th><td>Plays as any card (option).</td></tr>
       </table>
       <ul>
-        <li>Landing on a marble sends it home. You cannot land on your own marble.</li>
+        <li>Landing on a marble sends it home. You cannot land on your own marble, and you cannot jump over your own marbles (option).</li>
         <li>A marble on its own base is protected: nobody can pass it, kill it or swap it, not even a King.</li>
         <li>Taking a marble out kills whatever is sitting on your base.</li>
         <li>You enter your safe zone after a full lap. Backing up 4 from your base and then moving forward enters it early. No jumping over marbles inside the safe zone; the card must fit exactly.</li>
@@ -151,6 +154,14 @@
     </article>
   </dialog>
 
+  <dialog id="designDialog">
+    <article>
+      <h2>Choose your board</h2>
+      <p class="muted">Only changes how the table looks on this device. Everyone can pick their own.</p>
+      <div id="designGrid" class="design-grid"></div>
+      <form method="dialog"><button class="primary">Done</button></form>
+    </article>
+  </dialog>
   <canvas id="confetti" class="confetti hidden"></canvas>
   <div id="flyLayer"></div>
   <script src="./config.js"></script>

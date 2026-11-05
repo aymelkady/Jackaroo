@@ -8,7 +8,8 @@ A live, multiplayer web version of **Jackaroo** (Jakaroo), the marbles-and-cards
 - **Teams**: random teams at start, or pick your own seat in the lobby to choose your partner.
 - **Bots**: the host can add simple bots to fill empty seats or to try the game alone.
 - **Chat and emoji reactions** that pop up over the player's seat, sounds, a vibration when it is your turn (mute button in the top bar), marbles that hop hole by hole, cards that fly to the discard pile, confetti on the win.
-- **Phones first**: works in Safari on iPhone and Chrome on Android. Add it to the home screen and it opens full-screen like an app (web app manifest + service worker). The board rotates so your own seat is always at the bottom, holes are numbered 1–18 from each base, and the holes you can reach light up when you pick a card.
+- **Boards to choose from**: Andalusian walnut with brass khatim inlay (square or octagon), ebony with mother-of-pearl, plain oak, or the classic round board. Each player picks their own on their device.
+- **Phones first**: works in Safari on iPhone and Chrome on Android. Add it to the home screen and it opens full-screen like an app (web app manifest + service worker). The board rotates so your own seat is always at the bottom, holes are numbered 1–18 from each base, the holes you can reach light up when you pick a card and you can tap a lit hole to move there. The hand docks at the bottom of the phone and a zoom button enlarges the board.
 
 Rules, including which house rules are used and which can be toggled, are in [RULES.md](RULES.md). The track has 19 holes per player (base + 18); change `cellsPerPlayer` in `server/engine.js` if your wooden board counts differently.
 

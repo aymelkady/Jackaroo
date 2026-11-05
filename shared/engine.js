@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   jokers: false,       // add 2 jokers per deck; a joker may be played as any rank
   kingKills: true,     // King may also move 13 steps killing everything it passes
   fiveMovesAny: true,  // 5 may move ANY marble on the track (opponent or partner)
+  jumpOwn: false,      // may a marble jump over another marble of the same player? (most tables: no)
   randomTeams: true,   // shuffle seats when the host starts the game
 };
 
@@ -24,6 +25,7 @@ export function normalizeSettings(input = {}) {
   if (typeof input.jokers === 'boolean') s.jokers = input.jokers;
   if (typeof input.kingKills === 'boolean') s.kingKills = input.kingKills;
   if (typeof input.fiveMovesAny === 'boolean') s.fiveMovesAny = input.fiveMovesAny;
+  if (typeof input.jumpOwn === 'boolean') s.jumpOwn = input.jumpOwn;
   if (typeof input.randomTeams === 'boolean') s.randomTeams = input.randomTeams;
   return s;
 }
@@ -306,7 +308,7 @@ function simulateStep(state, m, steps, opts = {}) {
       if (k === n) {
         if (occ.owner === m.owner) return { ok: false };
         kills.push(occ.id);
-      }
+      } else if (occ.owner === m.owner && !s.jumpOwn) return { ok: false }; // cannot jump over your own marble
     }
     return { ok: true, kills, to: { zone: 'track', pos: ((m.pos - n) % L + L) % L } };
   }
@@ -321,6 +323,8 @@ function simulateStep(state, m, steps, opts = {}) {
       if (k === steps) {
         if (occ.owner === m.owner) return { ok: false };
         kills.push(occ.id);
+      } else if (occ.owner === m.owner && !s.jumpOwn) {
+        return { ok: false }; // cannot jump over your own marble (not even with a King)
       } else if (killPath) {
         kills.push(occ.id);
       }

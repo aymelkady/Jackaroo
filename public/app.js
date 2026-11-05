@@ -17,6 +17,7 @@
   let geo = null;
   let lastMoveAt = 0, wasMyTurn = false, lastDealNo = 0;
   let prevPos = new Map(); // marble id -> {owner, zone, pos} as last rendered
+  let scrolledFor = null;
 
   // ---------- storage ----------
   const store = {
@@ -137,7 +138,7 @@
     const name = $('name').value.trim();
     if (!name) return showError('Enter your name first');
     store.name = name;
-    send({ type: 'create', name, settings: { players: Number($('players').value), randomTeams: $('optRandomTeams').checked, kingKills: $('optKing').checked, fiveMovesAny: $('optFive').checked, jokers: $('optJokers').checked } });
+    send({ type: 'create', name, settings: { players: Number($('players').value), randomTeams: $('optRandomTeams').checked, kingKills: $('optKing').checked, fiveMovesAny: $('optFive').checked, jumpOwn: $('optJumpOwn').checked, jokers: $('optJokers').checked } });
   };
   $('btnJoin').onclick = () => joinFromForm(false);
   $('btnWatch').onclick = () => joinFromForm(true);
@@ -194,11 +195,12 @@
         <label class="chk"><input type="checkbox" id="lsRandom" ${s.randomTeams ? 'checked' : ''}/> random teams</label>
         <label class="chk"><input type="checkbox" id="lsKing" ${s.kingKills ? 'checked' : ''}/> King 13 kills</label>
         <label class="chk"><input type="checkbox" id="lsFive" ${s.fiveMovesAny ? 'checked' : ''}/> 5 moves any marble</label>
+        <label class="chk"><input type="checkbox" id="lsJumpOwn" ${s.jumpOwn ? 'checked' : ''}/> may jump own marbles</label>
         <label class="chk"><input type="checkbox" id="lsJokers" ${s.jokers ? 'checked' : ''}/> jokers</label>`;
-      const push = () => send({ type: 'settings', settings: { players: Number($('lsPlayers').value), randomTeams: $('lsRandom').checked, kingKills: $('lsKing').checked, fiveMovesAny: $('lsFive').checked, jokers: $('lsJokers').checked } });
-      for (const id of ['lsPlayers', 'lsRandom', 'lsKing', 'lsFive', 'lsJokers']) $(id).onchange = push;
+      const push = () => send({ type: 'settings', settings: { players: Number($('lsPlayers').value), randomTeams: $('lsRandom').checked, kingKills: $('lsKing').checked, fiveMovesAny: $('lsFive').checked, jumpOwn: $('lsJumpOwn').checked, jokers: $('lsJokers').checked } });
+      for (const id of ['lsPlayers', 'lsRandom', 'lsKing', 'lsFive', 'lsJumpOwn', 'lsJokers']) $(id).onchange = push;
     } else {
-      st.innerHTML = `<span class="muted">${s.players} players · ${s.randomTeams ? 'random teams' : 'chosen seats'} · King 13 ${s.kingKills ? 'on' : 'off'} · 5 any ${s.fiveMovesAny ? 'on' : 'off'} · jokers ${s.jokers ? 'on' : 'off'}</span>`;
+      st.innerHTML = `<span class="muted">${s.players} players · ${s.randomTeams ? 'random teams' : 'chosen seats'} · King 13 ${s.kingKills ? 'on' : 'off'} · 5 any ${s.fiveMovesAny ? 'on' : 'off'} · jump own ${s.jumpOwn ? 'on' : 'off'} · jokers ${s.jokers ? 'on' : 'off'}</span>`;
     }
     const full = state.players.length === n;
     $('btnStart').classList.toggle('hidden', !isHost);
@@ -217,32 +219,109 @@
     return `#${((f(r) << 16) | (f(g) << 8) | f(b)).toString(16).padStart(6, '0')}`;
   }
 
+  // ---------- board designs ----------
+  const WOOD_ANDALUS = { wood: ['#9a6a3c', '#6a4322', '#3f2512'], rim: ['#4a2c16', '#1d1008'], accent: '#d9b25c', holeTop: '#2a1a0e', num: 'rgba(245,215,150,.8)', grain: [0.42, 0.27, 0.12] };
+  const WOOD_OAK = { wood: ['#c99a63', '#a9743f', '#6e4420'], rim: ['#7a4a22', '#3d2410'], accent: '#ffd369', holeTop: '#3a2614', num: 'rgba(255,228,190,.65)', grain: [0.42, 0.27, 0.12] };
+  const WOOD_EBONY = { wood: ['#5a4a40', '#2f2520', '#15100d'], rim: ['#0f0b09', '#3a2e27'], accent: '#e8e2d4', holeTop: '#0d0908', num: 'rgba(232,226,212,.7)', grain: [0.2, 0.15, 0.12] };
+  const DESIGNS = {
+    andalus: { label: 'Andalus walnut', sub: 'square, brass inlay', shape: 'square', pattern: 'girih', ...WOOD_ANDALUS },
+    andalus8: { label: 'Andalus octagon', sub: 'eight sides, brass inlay', shape: 'octagon', pattern: 'girih', ...WOOD_ANDALUS },
+    ebony: { label: 'Ebony & pearl', sub: 'square, mother-of-pearl', shape: 'square', pattern: 'pearl', ...WOOD_EBONY },
+    oaksq: { label: 'Plain oak', sub: 'square, no inlay', shape: 'square', pattern: null, ...WOOD_OAK },
+    oak: { label: 'Classic round', sub: 'the original board', shape: 'round', pattern: null, ...WOOD_OAK },
+  };
+  function designId() { const d = localStorage.getItem('jk.design'); return DESIGNS[d] ? d : 'andalus'; }
+  function design() { return DESIGNS[designId()]; }
+
   // ---------- geometry ----------
+  // The track is a closed rounded polygon; cells sit at equal arc-length steps along it,
+  // starting at the bottom centre (the viewer's own base) and running clockwise.
+  function shapeVertices(shape, half) {
+    const cx = 500, cy = 500;
+    if (shape === 'square') return { r: half * 0.3, v: [[cx - half, cy + half], [cx - half, cy - half], [cx + half, cy - half], [cx + half, cy + half]] };
+    if (shape === 'octagon') {
+      const v = []; for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + Math.PI / 2 + (k * Math.PI) / 4; v.push([cx + half * Math.cos(a), cy + half * Math.sin(a)]); }
+      return { r: half * 0.09, v };
+    }
+    return { r: half, v: [[cx, cy + half], [cx - half, cy], [cx, cy - half], [cx + half, cy]] }; // round: 4 corners, radius = half -> circle
+  }
+  function roundedPolyPath(shape, half) {
+    const { r, v } = shapeVertices(shape, half);
+    if (shape === 'round') return `M ${500} ${500 + half} A ${half} ${half} 0 1 1 ${500} ${500 - half} A ${half} ${half} 0 1 1 ${500} ${500 + half} Z`;
+    const n = v.length; let d = '';
+    for (let i = 0; i < n; i++) {
+      const p = v[i], q = v[(i + 1) % n], o = v[(i - 1 + n) % n];
+      const u1 = unit(o, p), u2 = unit(p, q);
+      const a = [p[0] - u1[0] * r, p[1] - u1[1] * r], b = [p[0] + u2[0] * r, p[1] + u2[1] * r];
+      d += (i === 0 ? `M ${a[0]} ${a[1]} ` : `L ${a[0]} ${a[1]} `) + `Q ${p[0]} ${p[1]} ${b[0]} ${b[1]} `;
+    }
+    return d + 'Z';
+  }
+  function unit(a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; }
+  function densePath(shape, half) {
+    const pts = [];
+    if (shape === 'round') {
+      for (let i = 0; i < 2000; i++) { const a = Math.PI / 2 + (i / 2000) * 2 * Math.PI; pts.push([500 + half * Math.cos(a), 500 + half * Math.sin(a)]); }
+    } else {
+      const { r, v } = shapeVertices(shape, half);
+      const n = v.length;
+      for (let i = 0; i < n; i++) {
+        const p = v[i], q = v[(i + 1) % n], o = v[(i - 1 + n) % n];
+        const u1 = unit(o, p), u2 = unit(p, q);
+        const a = [p[0] - u1[0] * r, p[1] - u1[1] * r], b = [p[0] + u2[0] * r, p[1] + u2[1] * r];
+        for (let k = 0; k < 40; k++) { const t = k / 40; pts.push([(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * p[0] + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * p[1] + t * t * b[1]]); }
+        const c = [q[0] - u2[0] * r, q[1] - u2[1] * r];
+        for (let k = 0; k < 200; k++) { const t = k / 200; pts.push([b[0] + (c[0] - b[0]) * t, b[1] + (c[1] - b[1]) * t]); }
+      }
+      // rotate so the path starts at the bottom centre
+      let best = 0, bd = Infinity;
+      pts.forEach((p, i) => { const d = Math.hypot(p[0] - 500, p[1] - (500 + half)); if (d < bd) { bd = d; best = i; } });
+      pts.push(...pts.splice(0, best));
+    }
+    const cum = [0];
+    for (let i = 1; i <= pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i % pts.length][0] - pts[i - 1][0], pts[i % pts.length][1] - pts[i - 1][1]));
+    return { pts, cum, P: cum[pts.length] };
+  }
+  function frameAt(dp, s) {
+    const { pts, cum, P } = dp;
+    s = ((s % P) + P) % P;
+    let lo = 0, hi = pts.length;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= s) lo = mid; else hi = mid; }
+    const a = pts[lo], b = pts[(lo + 1) % pts.length];
+    const seg = cum[lo + 1] - cum[lo] || 1, t = (s - cum[lo]) / seg;
+    const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+    const c = pts[(lo + 8) % pts.length], o = pts[(lo - 8 + pts.length) % pts.length];
+    let tx = c[0] - o[0], ty = c[1] - o[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+    let nx = -ty, ny = tx; // inward normal
+    if ((500 - x) * nx + (500 - y) * ny < 0) { nx = -nx; ny = -ny; }
+    return { x, y, tx, ty, nx, ny };
+  }
+  function computeGeometry(s, mySeat, shape) {
+    const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
+    const half = shape === 'round' ? 400 : shape === 'octagon' ? 452 : 425;
+    const dp = densePath(shape, half);
+    const spacing = dp.P / L;
+    const rc = Math.min(22, spacing * 0.44);
+    const gap = rc * 2.45;
+    const sAt = (i) => (i - mySeat * cpp) * spacing;
+    const track = [], frames = [];
+    for (let i = 0; i < L; i++) { const f = frameAt(dp, sAt(i)); track.push({ x: f.x, y: f.y }); frames.push(f); }
+    const safe = [], home = [], label = [];
+    for (let seat = 0; seat < n; seat++) {
+      const f = frames[seat * cpp];
+      const at = (inward, back) => ({ x: f.x + f.nx * inward - f.tx * back, y: f.y + f.ny * inward - f.ty * back });
+      safe.push(Array.from({ length: s.safeCells }, (_, k) => at(gap * (k + 1), 0)));
+      home.push([at(gap * 1.15, gap * 1.7), at(gap * 1.15, gap * 2.7), at(gap * 2.15, gap * 1.7), at(gap * 2.15, gap * 2.7)]);
+      label.push({ ...at(gap * 3.35, gap * 2.2), horizontal: Math.abs(f.ty) > 0.7 });
+    }
+    return { L, cx: 500, cy: 500, rc, gap, half, shape, track, frames, safe, home, label, cpp, n };
+  }
   function geometry() {
     const s = state.settings;
-    const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
     const mySeat = you ? you.seat : 0;
-    const key = `${n}-${cpp}-${s.safeCells}-${mySeat}`;
+    const key = `${s.players}-${s.cellsPerPlayer}-${s.safeCells}-${mySeat}-${designId()}`;
     if (boardKey === key) return geo;
-    const cx = 500, cy = 500, Rt = 380;
-    const step = (2 * Math.PI) / L;
-    const rc = Math.min(14.5, (Rt * step) * 0.44);
-    // rotate the board so the viewer's own base sits at the bottom
-    const ang = (i) => Math.PI / 2 + (i - mySeat * cpp) * step;
-    const pt = (a, r) => ({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
-    const track = [];
-    for (let i = 0; i < L; i++) track.push(pt(ang(i), Rt));
-    const safe = [], home = [], label = [];
-    const gap = rc * 2.6;
-    for (let seat = 0; seat < n; seat++) {
-      const a = ang(seat * cpp);
-      safe.push(Array.from({ length: s.safeCells }, (_, k) => pt(a, Rt - gap * (k + 1))));
-      const spread = Math.min(step * 1.6, 0.11);
-      const homeR = Rt + Math.max(24, rc * 2.4);
-      home.push(Array.from({ length: s.marblesPerPlayer }, (_, k) => pt(a + (k - 1.5) * spread, homeR)));
-      label.push(pt(a, homeR + rc * 2 + 24));
-    }
-    geo = { L, cx, cy, Rt, rc, track, safe, home, label, cpp };
+    geo = computeGeometry(s, mySeat, design().shape);
     boardKey = key;
     return geo;
   }
@@ -258,80 +337,154 @@
     return cellPos(m.owner, m.zone, m.pos);
   }
 
-  function drawBoardStatic() {
-    const g = geometry();
-    const svg = $('board');
-    const n = state.settings.players;
-    const R = g.Rt + Math.max(24, g.rc * 2.4) + g.rc * 2 + 48; // board edge
+  function patternDef(id, kind, accent) {
+    if (kind === 'girih') {
+      // eight-pointed star (khatim) lattice, brass lines
+      return `<pattern id="${id}" width="96" height="96" patternUnits="userSpaceOnUse">
+        <g fill="none" stroke="${accent}" stroke-width="1.4" stroke-opacity=".55">
+          <polygon points="48,8 58,38 88,48 58,58 48,88 38,58 8,48 38,38"/>
+          <polygon points="48,22 66,30 74,48 66,66 48,74 30,66 22,48 30,30"/>
+          <path d="M0 0 L20 20 M96 0 L76 20 M0 96 L20 76 M96 96 L76 76"/>
+          <circle cx="48" cy="48" r="7"/>
+        </g></pattern>`;
+    }
+    if (kind === 'pearl') {
+      return `<pattern id="${id}" width="64" height="64" patternUnits="userSpaceOnUse">
+        <g fill="${accent}" fill-opacity=".22" stroke="${accent}" stroke-opacity=".35" stroke-width=".8">
+          <polygon points="32,6 36,28 58,32 36,36 32,58 28,36 6,32 28,28"/>
+          <circle cx="0" cy="0" r="3"/><circle cx="64" cy="0" r="3"/><circle cx="0" cy="64" r="3"/><circle cx="64" cy="64" r="3"/>
+        </g></pattern>`;
+    }
+    return '';
+  }
+
+  function boardMarkup(g, d, idp, seatColorOf) {
+    const n = g.n;
+    const shapeHalf = g.half + g.rc * 3.2;
+    const bodyPath = roundedPolyPath(g.shape, shapeHalf);
+    const rimPath = roundedPolyPath(g.shape, shapeHalf + 14);
+    const innerPath = roundedPolyPath(g.shape, shapeHalf - 4);
+    const trackPath = roundedPolyPath(g.shape, g.half);
     let h = `<defs>
-      <radialGradient id="woodGrad" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="#c99a63"/><stop offset=".55" stop-color="#a9743f"/><stop offset="1" stop-color="#6e4420"/></radialGradient>
-      <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a4a22"/><stop offset=".5" stop-color="#3d2410"/><stop offset="1" stop-color="#6a3f1c"/></linearGradient>
-      <radialGradient id="holeGrad" cx="40%" cy="35%" r="65%"><stop offset="0" stop-color="#3a2614"/><stop offset=".6" stop-color="#1b110a"/><stop offset="1" stop-color="#4a3118"/></radialGradient>
-      <linearGradient id="cardBack" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8e2b2b"/><stop offset="1" stop-color="#5a1414"/></linearGradient>
-      <filter id="woodgrain" x="0" y="0" width="100%" height="100%">
+      <radialGradient id="${idp}woodGrad" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="${d.wood[0]}"/><stop offset=".55" stop-color="${d.wood[1]}"/><stop offset="1" stop-color="${d.wood[2]}"/></radialGradient>
+      <linearGradient id="${idp}rimGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${d.rim[0]}"/><stop offset=".5" stop-color="${d.rim[1]}"/><stop offset="1" stop-color="${d.rim[0]}"/></linearGradient>
+      <radialGradient id="${idp}holeGrad" cx="40%" cy="35%" r="65%"><stop offset="0" stop-color="${d.holeTop}"/><stop offset=".6" stop-color="#120b06"/><stop offset="1" stop-color="${shade(d.wood[2], -0.2)}"/></radialGradient>
+      <linearGradient id="${idp}cardBack" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8e2b2b"/><stop offset="1" stop-color="#5a1414"/></linearGradient>
+      <linearGradient id="${idp}brass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${shade(d.accent, 0.35)}"/><stop offset=".5" stop-color="${d.accent}"/><stop offset="1" stop-color="${shade(d.accent, -0.35)}"/></linearGradient>
+      <filter id="${idp}woodgrain" x="0" y="0" width="100%" height="100%">
         <feTurbulence type="fractalNoise" baseFrequency="0.004 0.13" numOctaves="5" seed="11" result="noise"/>
-        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.27  0 0 0 0 0.12  0 0 0 0.8 0" result="grain"/>
+        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 ${d.grain[0]}  0 0 0 0 ${d.grain[1]}  0 0 0 0 ${d.grain[2]}  0 0 0 0.8 0" result="grain"/>
         <feComposite in="grain" in2="SourceGraphic" operator="in" result="clipped"/>
         <feBlend in="SourceGraphic" in2="clipped" mode="multiply"/>
       </filter>
-      <filter id="inset" x="-20%" y="-20%" width="140%" height="140%">
+      <filter id="${idp}inset" x="-20%" y="-20%" width="140%" height="140%">
         <feOffset dx="0" dy="2" in="SourceAlpha" result="o"/><feGaussianBlur in="o" stdDeviation="1.5" result="b"/>
         <feComposite in="b" in2="SourceAlpha" operator="out" result="s"/><feFlood flood-color="#000" flood-opacity=".7"/><feComposite in2="s" operator="in" result="sh"/>
         <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="sh"/></feMerge>
       </filter>
-      <filter id="mshadow" x="-60%" y="-60%" width="240%" height="240%"><feDropShadow dx="1.5" dy="3" stdDeviation="1.6" flood-color="#000" flood-opacity=".55"/></filter>
-      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+      <filter id="${idp}mshadow" x="-60%" y="-60%" width="240%" height="240%"><feDropShadow dx="1.5" dy="3" stdDeviation="1.6" flood-color="#000" flood-opacity=".55"/></filter>
+      <filter id="${idp}glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      ${d.pattern ? patternDef(idp + 'inlay', d.pattern, d.accent) : ''}`;
     for (let seat = 0; seat < n; seat++) {
-      const c = seatColor(seat);
-      h += `<radialGradient id="mg${seat}" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="${shade(c, 0.75)}"/><stop offset=".25" stop-color="${shade(c, 0.25)}"/><stop offset=".7" stop-color="${c}"/><stop offset="1" stop-color="${shade(c, -0.55)}"/></radialGradient>`;
+      const c = seatColorOf(seat);
+      h += `<radialGradient id="${idp}mg${seat}" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="${shade(c, 0.75)}"/><stop offset=".25" stop-color="${shade(c, 0.25)}"/><stop offset=".7" stop-color="${c}"/><stop offset="1" stop-color="${shade(c, -0.55)}"/></radialGradient>`;
     }
     h += `</defs>`;
-    // board body
-    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${R + 14}" fill="url(#rimGrad)"/>`;
-    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${R}" fill="url(#woodGrad)" filter="url(#woodgrain)"/>`;
-    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${R - 3}" fill="none" stroke="rgba(255,220,170,.25)" stroke-width="2"/>`;
-    // track groove
-    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${g.Rt}" fill="none" stroke="rgba(0,0,0,.16)" stroke-width="${g.rc * 2.8}"/>`;
-    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${g.Rt}" fill="none" stroke="rgba(255,235,200,.12)" stroke-width="1"/>`;
+    // body
+    h += `<path d="${rimPath}" fill="url(#${idp}rimGrad)"/>`;
+    h += `<path d="${bodyPath}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
+    if (d.pattern) h += `<path d="${bodyPath}" fill="url(#${idp}inlay)"/>`;
+    h += `<path d="${innerPath}" fill="none" stroke="url(#${idp}brass)" stroke-width="2.5" stroke-opacity=".85"/>`;
+    h += `<path d="${roundedPolyPath(g.shape, shapeHalf - 11)}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35"/>`;
+    // track groove (wider band, slightly darker) + hairline
+    h += `<path d="${trackPath}" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="${g.rc * 2.9}" stroke-linejoin="round"/>`;
+    h += `<path d="${trackPath}" fill="none" stroke="${d.accent}" stroke-opacity=".18" stroke-width="1"/>`;
+    // centre medallion
+    const R1 = Math.min(175, g.half - g.gap * 4.8), R2 = R1 * 0.42;
+    let star = '';
+    for (let k = 0; k < 16; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 8, r = k % 2 ? R2 : R1; star += `${(500 + r * Math.cos(a)).toFixed(1)},${(500 + r * Math.sin(a)).toFixed(1)} `; }
+    h += `<polygon points="${star}" fill="rgba(0,0,0,.14)" stroke="url(#${idp}brass)" stroke-width="2" stroke-opacity=".7"/>`;
+    h += `<circle cx="500" cy="500" r="${R1 * 1.08}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35" stroke-dasharray="6 5"/>`;
     // holes
     let nums = '';
+    const hole = (p, r, extra = '') => `<circle class="hole" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${idp}holeGrad)" filter="url(#${idp}inset)" ${extra}/>`;
     g.track.forEach((p, i) => {
       const isBase = i % g.cpp === 0;
       const seat = i / g.cpp;
-      h += `<circle class="hole${isBase ? ' base-ring' : ''}" data-abs="${i}" cx="${p.x}" cy="${p.y}" r="${isBase ? g.rc * 1.12 : g.rc}" ${isBase ? `style="stroke:${seatColor(seat)}"` : ''} filter="url(#inset)"/>`;
-      if (!isBase) nums += `<text class="num" x="${p.x}" y="${p.y + g.rc * 0.38}" style="font-size:${(g.rc * 0.95).toFixed(1)}px">${i % g.cpp}</text>`;
-      else nums += `<text class="num" x="${p.x}" y="${p.y + g.rc * 0.45}" style="font-size:${(g.rc * 1.1).toFixed(1)}px;fill:${seatColor(seat)};opacity:.9">★</text>`;
+      h += hole(p, isBase ? g.rc * 1.12 : g.rc, isBase ? `data-abs="${i}" style="stroke:${seatColorOf(seat)};stroke-width:3"` : `data-abs="${i}"`);
+      if (!isBase) nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.38).toFixed(1)}" style="font-size:${(g.rc * 0.95).toFixed(1)}px;fill:${d.num}">${i % g.cpp}</text>`;
+      else nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.45).toFixed(1)}" style="font-size:${(g.rc * 1.1).toFixed(1)}px;fill:${seatColorOf(seat)};opacity:.9">★</text>`;
     });
     for (let seat = 0; seat < n; seat++) {
-      const c = seatColor(seat);
-      g.safe[seat].forEach((p, k) => { h += `<circle class="hole" cx="${p.x}" cy="${p.y}" r="${g.rc}" style="stroke:${c};stroke-width:1.8" filter="url(#inset)"/>`; nums += `<text class="num" x="${p.x}" y="${p.y + g.rc * 0.38}" style="font-size:${(g.rc * 0.85).toFixed(1)}px;fill:${c};opacity:.7">${k + 1}</text>`; });
-      // home tray
+      const c = seatColorOf(seat);
+      g.safe[seat].forEach((p, k) => { h += hole(p, g.rc, `style="stroke:${c};stroke-width:1.8"`); nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.38).toFixed(1)}" style="font-size:${(g.rc * 0.85).toFixed(1)}px;fill:${c};opacity:.75">${k + 1}</text>`; });
       const hp = g.home[seat];
       const mx = (hp[0].x + hp[3].x) / 2, my = (hp[0].y + hp[3].y) / 2;
-      const len = Math.hypot(hp[3].x - hp[0].x, hp[3].y - hp[0].y) + g.rc * 3.2;
-      const rot = Math.atan2(hp[3].y - hp[0].y, hp[3].x - hp[0].x) * 180 / Math.PI;
-      h += `<rect x="${mx - len / 2}" y="${my - g.rc * 1.6}" width="${len}" height="${g.rc * 3.2}" rx="${g.rc * 1.6}" fill="rgba(0,0,0,.22)" stroke="${c}" stroke-opacity=".45" transform="rotate(${rot} ${mx} ${my})"/>`;
-      hp.forEach((p) => { h += `<circle class="hole" cx="${p.x}" cy="${p.y}" r="${g.rc * .95}" filter="url(#inset)"/>`; });
+      const f = g.frames[seat * g.cpp];
+      const rot = Math.atan2(f.ty, f.tx) * 180 / Math.PI;
+      const w = g.gap * 2.1, hgt = g.gap * 2.1;
+      h += `<rect x="${(mx - w / 2).toFixed(1)}" y="${(my - hgt / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${hgt.toFixed(1)}" rx="${(g.rc * 0.9).toFixed(1)}" fill="rgba(0,0,0,.22)" stroke="${c}" stroke-opacity=".5" transform="rotate(${rot.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})"/>`;
+      hp.forEach((p) => { h += hole(p, g.rc * 0.95); });
       const lp = g.label[seat];
-      h += `<text id="lbl${seat}" class="lbl" x="${lp.x}" y="${lp.y + 7}" style="fill:${c}"></text>`;
+      h += `<text id="${idp}lbl${seat}" class="lbl" x="${lp.x.toFixed(1)}" y="${(lp.y + 7).toFixed(1)}" style="fill:${c};font-size:${Math.max(14, g.rc * 1.15).toFixed(1)}px"></text>`;
     }
     h += nums;
+    return h;
+  }
+
+  function drawBoardStatic() {
+    const g = geometry();
+    const d = design();
+    const svg = $('board');
+    let h = boardMarkup(g, d, '', seatColor);
     // centre: title, status, piles
-    h += `<text class="center-title" x="${g.cx}" y="${g.cy - 70}">JACKAROO</text>`;
-    h += `<text id="centerText" class="center-text" x="${g.cx}" y="${g.cy - 22}"></text><text id="centerSub" class="center-sub" x="${g.cx}" y="${g.cy + 6}"></text>`;
-    const cw = 54, ch = 76, py = g.cy + 36;
+    h += `<text class="center-title" x="500" y="430" style="fill:${d.accent};fill-opacity:.6">JACKAROO</text>`;
+    h += `<text id="centerText" class="center-text" x="500" y="478"></text><text id="centerSub" class="center-sub" x="500" y="506"></text>`;
+    const cw = 54, ch = 76, py = 536;
     h += `<g id="piles">
-      <rect class="pile-card" x="${g.cx - cw - 10 + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6"/>
-      <rect class="pile-card" x="${g.cx - cw - 10}" y="${py}" width="${cw}" height="${ch}" rx="6"/>
-      <rect x="${g.cx - cw - 10 + 5}" y="${py + 5}" width="${cw - 10}" height="${ch - 10}" rx="4" fill="none" stroke="rgba(255,220,180,.5)" stroke-dasharray="3 2"/>
-      <text id="stockCnt" class="pile-cnt" x="${g.cx - cw / 2 - 10}" y="${py + ch / 2 + 5}"></text>
-      <rect id="discardCard" class="pile-face" x="${g.cx + 10}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
-      <text id="discardTxt" class="pile-txt" x="${g.cx + 10 + cw / 2}" y="${py + ch / 2 + 8}"></text>
+      <rect class="pile-card" x="${500 - cw - 10 + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6" fill="url(#cardBack)"/>
+      <rect class="pile-card" x="${500 - cw - 10}" y="${py}" width="${cw}" height="${ch}" rx="6" fill="url(#cardBack)"/>
+      <rect x="${500 - cw - 10 + 5}" y="${py + 5}" width="${cw - 10}" height="${ch - 10}" rx="4" fill="none" stroke="rgba(255,220,180,.5)" stroke-dasharray="3 2"/>
+      <text id="stockCnt" class="pile-cnt" x="${500 - cw / 2 - 10}" y="${py + ch / 2 + 5}"></text>
+      <rect id="discardCard" class="pile-face" x="${500 + 10}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
+      <text id="discardTxt" class="pile-txt" x="${500 + 10 + cw / 2}" y="${py + ch / 2 + 8}"></text>
     </g>`;
     h += `<circle id="turnRing" class="turn-ring" r="20" cx="-100" cy="-100"/><g id="targets"></g><g id="marbles"></g><g id="bubbles"></g>`;
     svg.innerHTML = h;
     svg.dataset.key = boardKey;
   }
+
+  // ---------- design picker ----------
+  function previewMarkup(id, idp) {
+    const d = DESIGNS[id];
+    const g = computeGeometry({ players: 4, cellsPerPlayer: 19, safeCells: 4, marblesPerPlayer: 4 }, 0, d.shape);
+    const col = (seat) => TEAM_COLORS[seat % 2][seat < 2 ? 0 : 1];
+    let h = boardMarkup(g, d, idp, col);
+    const sample = [[0, 'track', 0], [0, 'track', 5], [1, 'track', 3], [2, 'track', 9], [3, 'track', 0], [1, 'safe', 0]];
+    for (const [owner, zone, pos] of sample) {
+      const p = zone === 'track' ? g.track[(owner * g.cpp + pos) % g.L] : g.safe[owner][pos];
+      h += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(g.rc * 0.92).toFixed(1)}" fill="url(#${idp}mg${owner})" stroke="rgba(0,0,0,.35)"/>`;
+    }
+    return h;
+  }
+  function openDesignPicker() {
+    const grid = $('designGrid');
+    grid.innerHTML = Object.keys(DESIGNS).map((id, i) => `<button type="button" class="design${id === designId() ? ' sel' : ''}" data-id="${id}">
+        <svg viewBox="-30 -30 1060 1060">${previewMarkup(id, `pv${i}_`)}</svg>
+        <span class="dn">${DESIGNS[id].label}</span><span class="ds">${DESIGNS[id].sub}</span></button>`).join('');
+    grid.querySelectorAll('button.design').forEach((b) => (b.onclick = () => {
+      localStorage.setItem('jk.design', b.dataset.id);
+      grid.querySelectorAll('button.design').forEach((x) => x.classList.toggle('sel', x === b));
+      if (state && state.phase !== 'lobby') { boardKey = ''; prevPos = new Map(); renderGame(); }
+    }));
+    $('designDialog').showModal();
+  }
+  $('btnDesign').onclick = openDesignPicker;
+  $('btnZoom').onclick = () => {
+    const w = document.querySelector('.board-wrap');
+    const on = w.classList.toggle('zoomed');
+    if (on) requestAnimationFrame(() => { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; });
+  };
 
   // ---------- move selection ----------
   function candidateMoves() {
@@ -387,10 +540,30 @@
         const k = `${d.owner}-${d.zone}-${d.pos}`;
         if (seen.has(k)) continue; seen.add(k);
         const p = cellPos(d.owner, d.zone, d.pos);
-        h += `<circle class="target${d.kill ? ' kill' : ''}" cx="${p.x}" cy="${p.y}" r="${g.rc * 1.35}" filter="url(#glow)"/>`;
+        h += `<circle class="target${d.kill ? ' kill' : ''}" data-owner="${d.owner}" data-zone="${d.zone}" data-pos="${d.pos}" cx="${p.x}" cy="${p.y}" r="${g.rc * 1.45}" filter="url(#glow)"/>`;
       }
     }
     grp.innerHTML = h;
+    // tapping a lit hole plays the move that ends there (when that is unambiguous)
+    grp.querySelectorAll('circle.target').forEach((c) => (c.onclick = () => tapTarget(Number(c.dataset.owner), c.dataset.zone, Number(c.dataset.pos))));
+    // on phones, bring the lit holes into view once per card selection
+    if (sel.cardId && scrolledFor !== sel.cardId && innerWidth <= 900) {
+      scrolledFor = sel.cardId;
+      const first = grp.querySelector('circle.target');
+      if (first) {
+        const r = first.getBoundingClientRect();
+        const visibleBottom = innerHeight - 180;
+        if (r.top < 60 || r.bottom > visibleBottom) window.scrollBy({ top: r.top - visibleBottom / 2, behavior: 'smooth' });
+      }
+    }
+  }
+  function tapTarget(owner, zone, pos) {
+    const depth = sel.picks.length;
+    const cands = candidateMoves().filter((mv) => destinationsOf(mv).some((d) => d.owner === owner && d.zone === zone && d.pos === pos));
+    if (!cands.length) return;
+    if (cands.length === 1) { sel.picks = cands[0].picks.map((p) => p.value); if (!tryCommit()) renderGame(); return; }
+    const next = cands[0].picks[depth];
+    if (next && cands.every((mv) => mv.picks[depth] && mv.picks[depth].value === next.value)) pick(next.value);
   }
 
   function pathPoints(prev, m) {
@@ -461,8 +634,8 @@
       if (!el) {
         el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         el.classList.add('marble'); el.dataset.id = m.id;
-        const r = g.rc * 0.86;
-        el.innerHTML = `<circle class="halo" r="0" fill="none" stroke="#ffd369" stroke-width="3"/>
+        const r = g.rc * 0.92;
+        el.innerHTML = `<circle class="hit" r="${g.rc * 1.9}" fill="transparent"/><circle class="halo" r="0" fill="none" stroke="#ffd369" stroke-width="3"/>
           <circle class="ring" r="${g.rc * 1.1}" fill="none" stroke="none"/>
           <g filter="url(#mshadow)"><circle class="body" r="${r}" fill="url(#mg${m.owner})"/></g>
           <ellipse rx="${r * .32}" ry="${r * .2}" cx="${-r * .35}" cy="${-r * .42}" fill="rgba(255,255,255,.85)" transform="rotate(-30 ${-r * .35} ${-r * .42})"/>
