@@ -1,9 +1,10 @@
 name: Publish to GitHub Pages
 # Builds the static (serverless) site and pushes it to the gh-pages branch, which GitHub Pages serves
-# at https://aymelkady.github.io/Jackaroo/ . Runs on every push to any branch except gh-pages itself.
+# at https://aymelkady.github.io/Jackaroo/ . Runs only on pushes to the default branch, so a push to a
+# side branch can never overwrite the live site (it did once).
 on:
   push:
-    branches-ignore: ["gh-pages"]
+    branches: ["ccr-6d2f9d52-xmfhda"]
   workflow_dispatch:
 permissions:
   contents: write

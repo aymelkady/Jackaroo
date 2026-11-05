@@ -69,7 +69,14 @@ a transient `commit_refs` failure on the gh-pages push just needs a rerun of the
 
 ## Open items
 
-1. Find out what he means by "ruined" and fix that first.
-2. Get his Render URL, wire `JK_SERVER`, test a real game against it.
+1. Board confirmed against his photos of the real boards (JJ round 4/6-player and the octagon board):
+   per section 1-5 up the player's left column, 6-9 on the central ring, 10-14 down the next arm's near
+   column, 15-18 along its outer row to its star; safe column in the middle entered from the 18 beside the
+   star; pens on the diagonals. The real pens are engraved as the suit shape (♠ ♥ ♦ ♣) with the 4 marbles
+   inside; ours is a square plate with the suit beside it. The octagon board has a 1x4 pen slot instead.
+2. Get his Render URL, wire `JK_SERVER` (repository variable), test a real game against it.
 3. Ask whether `jj` (round) should be the default instead of `saudi`.
 4. Scrapling is installed in this sandbox but cannot reach the rules sites (proxy 403); do not promise it.
+5. The Pages workflow now runs only for the default branch `ccr-6d2f9d52-xmfhda`. Branch
+   `ccr-c548cf10-u60aus` is a dead end (an earlier session restored the old cross board there); it can be
+   deleted.
