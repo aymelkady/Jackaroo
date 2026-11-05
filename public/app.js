@@ -18,7 +18,7 @@
   let lastMoveAt = 0, wasMyTurn = false, lastDealNo = 0;
   let prevPos = new Map(); // marble id -> {owner, zone, pos} as last rendered
   let scrolledFor = null;
-  let lastLogT = 0, seenChat = 0;
+  let lastLogT = 0;
   function initials(name) { return String(name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?'; }
   function toast(text, kill) {
     const box = $('toasts'); if (!box) return;
@@ -66,7 +66,8 @@
   $('btnSound').onclick = () => { store.sound = !store.sound; $('btnSound').textContent = store.sound ? '🔊' : '🔇'; if (store.sound) sfx.move(); };
 
   // ---------- transport: WebSocket to the Node server, or peer-to-peer when hosted statically ----------
-  const MODE = window.JK_MODE === 'server' ? 'server' : 'p2p';
+  const SERVER_URL = String(window.JK_SERVER || '').replace(/\/$/, '');
+  const MODE = window.JK_MODE === 'server' || SERVER_URL ? 'server' : 'p2p';
   let transport = null;
   let pendingJoin = null; // message to send once the connection opens
   function setStatus(state, text) {
@@ -97,7 +98,7 @@
     constructor() { this.retry = 0; this.ready = false; this.connect(); }
     connect() {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${location.host}/ws`);
+      const ws = new WebSocket(SERVER_URL ? SERVER_URL.replace(/^http/, 'ws') + '/ws' : `${proto}://${location.host}/ws`);
       this.ws = ws;
       ws.onopen = () => { this.ready = true; this.retry = 0; setStatus('on'); onOpen(); };
       ws.onclose = () => { this.ready = false; setStatus('off', 'Reconnecting…'); setTimeout(() => this.connect(), Math.min(8000, 500 * 2 ** this.retry++)); };
@@ -128,7 +129,7 @@
   function goHome(msg) {
     state = null; you = null; code = null; token = null;
     document.body.classList.remove('in-game');
-    lastLogT = 0; seenChat = 0;
+    lastLogT = 0;
     history.replaceState(null, '', location.pathname);
     showScreen('Home');
     if (msg) showError(msg);
@@ -363,7 +364,7 @@
         const pc = { x: corner.x + ux * gap * 2.95, y: corner.y + uy * gap * 2.95 };
         home.push([0, 1, 2, 3].map((k) => ({ x: pc.x + vx * (k - 1.5) * gap * 0.92, y: pc.y + vy * (k - 1.5) * gap * 0.92 })));
         const inwardDist = (gap * 5.1 + (half - w)) / 2; // midway between column end (5.1 gap from tip) and the centre square edge
-        label.push({ ...at(inwardDist, 0), horizontal: Math.abs(fb.ty) > 0.7, angle: Math.atan2(fb.ty, fb.tx) * 180 / Math.PI });
+        label.push({ ...at(inwardDist, 0), horizontal: Math.abs(fb.tx) > 0.7, angle: Math.atan2(fb.ty, fb.tx) * 180 / Math.PI });
       }
       return { L, cx: 500, cy: 500, rc, gap, half, shape, track, frames, safe, home, label, cpp, n, w };
     }
@@ -377,7 +378,7 @@
       safe.push(Array.from({ length: s.safeCells }, (_, k) => atE(gap * (k + 1), 0)));
       // home tray: inside the board, just ahead of the base
       home.push([atB(gap * 1.15, gap * 1.4), atB(gap * 1.15, gap * 2.4), atB(gap * 2.15, gap * 1.4), atB(gap * 2.15, gap * 2.4)]);
-      label.push({ ...atB(gap * 3.35, gap * 1.9), horizontal: Math.abs(fb.ty) > 0.7 });
+      label.push({ ...atB(gap * 3.35, gap * 1.9), horizontal: Math.abs(fb.tx) > 0.7 });
     }
     return { L, cx: 500, cy: 500, rc, gap, half, shape, track, frames, safe, home, label, cpp, n };
   }
@@ -778,12 +779,11 @@
       grp.appendChild(t);
       setTimeout(() => t.remove(), 2300);
     }
-    const chat = $('chat');
-    if (chat) { chat.insertAdjacentHTML('beforeend', `<div><b>${esc(name)}</b> ${emoji}</div>`); chat.scrollTop = chat.scrollHeight; }
     tone(520 + seat * 40, 0.08, 'sine', 0.05);
   }
   $('reactions').innerHTML = EMOJIS.map((e) => `<button type="button" data-e="${e}" title="react">${e}</button>`).join('');
-  $('reactions').querySelectorAll('button').forEach((b) => (b.onclick = () => send({ type: 'react', emoji: b.dataset.e })));
+  $('reactions').querySelectorAll('button').forEach((b) => (b.onclick = () => { send({ type: 'react', emoji: b.dataset.e }); $('reactions').classList.add('hidden'); }));
+  $('btnReact').onclick = () => $('reactions').classList.toggle('hidden');
 
   function confetti(ms = 3500) {
     const c = $('confetti'); const ctx = c.getContext('2d');
@@ -917,14 +917,10 @@
     // log & chat
     $('log').innerHTML = state.log.slice(-60).reverse().map((l) => `<div class="${/sends .* home|wins!/.test(l.text) ? 'kill' : ''}">${esc(l.text)}</div>`).join('');
     if (lastLogT) {
-      for (const l of state.log) if (l.t > lastLogT) toast(l.text, /sends .* home|wins!/.test(l.text));
+      for (const l of state.log) if (l.t > lastLogT && /sends .* home|wins!|^Deal |must burn|burns .* from|forced by/.test(l.text)) toast(l.text, /sends .* home|wins!/.test(l.text));
     }
     lastLogT = state.log.length ? state.log[state.log.length - 1].t : lastLogT;
-    if ($('panel').classList.contains('hidden') && state.chat.length > seenChat) { $('chatBadge').textContent = state.chat.length - seenChat; $('chatBadge').classList.remove('hidden'); }
-    const chat = $('chat');
-    const atBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 10;
-    chat.innerHTML = state.chat.map((c) => `<div><b style="color:${seatColor(c.seat)}">${esc(c.name)}:</b>${esc(c.text)}</div>`).join('');
-    if (atBottom) chat.scrollTop = chat.scrollHeight;
+
 
     renderFairness();
     $('btnRematch').classList.toggle('hidden', !(state.phase === 'finished' && state.hostId === playerId));
@@ -966,17 +962,14 @@
     }));
   }
 
-  $('chatForm').onsubmit = (e) => { e.preventDefault(); const t = $('chatInput').value.trim(); if (t) send({ type: 'chat', text: t }); $('chatInput').value = ''; };
   $('btnRematch').onclick = () => send({ type: 'rematch' });
   function openPanel(tab) {
     $('panel').classList.remove('hidden');
     document.querySelectorAll('.panel-tabs .tab').forEach((b) => b.classList.toggle('sel', b.dataset.tab === tab));
     $('tabLog').classList.toggle('hidden', tab !== 'log');
-    $('tabChat').classList.toggle('hidden', tab !== 'chat');
     $('tabFair').classList.toggle('hidden', tab !== 'fair');
-    if (tab === 'chat' && state) { seenChat = state.chat.length; $('chatBadge').classList.add('hidden'); const c = $('chat'); c.scrollTop = c.scrollHeight; }
   }
-  $('btnPanel').onclick = () => { if ($('panel').classList.contains('hidden')) openPanel($('chatBadge').classList.contains('hidden') ? 'log' : 'chat'); else $('panel').classList.add('hidden'); };
+  $('btnPanel').onclick = () => { if ($('panel').classList.contains('hidden')) openPanel('log'); else $('panel').classList.add('hidden'); };
   $('btnPanelClose').onclick = () => $('panel').classList.add('hidden');
   document.querySelectorAll('.panel-tabs .tab').forEach((b) => (b.onclick = () => openPanel(b.dataset.tab)));
 

@@ -132,7 +132,6 @@ body.in-game .topbar { display: none; }
 .prompt b { color: var(--ink); }
 .prompt .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
 .prompt .opts button { padding: 7px 12px; min-height: 0; font-size: 13px; }
-.hand-row { display: flex; align-items: flex-end; gap: 14px; }
 .hand { display: flex; align-items: flex-end; min-height: 108px; padding: 14px 24px 2px; }
 .pcard { width: 72px; height: 104px; border-radius: 10px; background: linear-gradient(160deg, #fffdf6 0%, #f3ead6 100%); color: #1a1a1a; border: 1px solid #c9bda0; box-shadow: -2px 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.6); display: flex; flex-direction: column; justify-content: space-between; padding: 7px 8px; cursor: pointer; font-weight: 800; user-select: none; transition: transform .16s, box-shadow .16s; position: relative; margin-left: -22px; transform-origin: 50% 110%; }
 .pcard:first-child { margin-left: 0; }
@@ -145,8 +144,8 @@ body.in-game .topbar { display: none; }
 .pcard.joker { background: linear-gradient(160deg, #fff6d5, #f5d98a); }
 .pcard.joker .s { font-size: 13px; letter-spacing: 1px; }
 @media (hover: hover) { .pcard:not(.dead):not(.sel):hover { transform: translateY(-10px) !important; z-index: 1; } }
-.reactions { display: grid; grid-template-columns: repeat(4, auto); gap: 4px; }
-.reactions button { font-size: 18px; padding: 2px 6px; min-height: 0; line-height: 1; border-radius: 999px; background: rgba(26,38,32,.9); }
+.reactions { display: flex; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(16,26,20,.95); border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
+.reactions button { font-size: 22px; padding: 2px 6px; min-height: 0; line-height: 1; border-radius: 999px; background: none; border: none; }
 .reactions button:active { transform: scale(1.2); }
 
 /* side panel */
@@ -232,13 +231,11 @@ button.design .ds { font-size: 12px; color: var(--muted); }
   .side-top { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 8px calc(8px + var(--safe-bottom)); gap: 4px; }
   .turn-banner { padding: 5px 12px; font-size: 13px; }
   .prompt { font-size: 12.5px; }
-  .hand-row { width: 100%; justify-content: center; gap: 8px; }
-  .hand { min-height: 92px; padding: 12px 10px 0; overflow-x: auto; max-width: calc(100% - 70px); }
+  .hand { min-height: 92px; padding: 12px 10px 0; overflow-x: auto; max-width: 100%; }
   .pcard { width: 58px; height: 84px; margin-left: -16px; padding: 5px 6px; flex: none; }
   .pcard .r, .pcard .b { font-size: 16px; } .pcard .s { font-size: 24px; }
   .pcard.sel { transform: translateY(-12px) !important; }
-  .reactions { grid-template-columns: repeat(2, auto); gap: 3px; }
-  .reactions button { font-size: 15px; padding: 1px 4px; }
+  .reactions button { font-size: 19px; padding: 1px 4px; }
   .screen.game { padding-bottom: 170px; }
   .panel { width: 100%; top: auto; height: 70vh; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; animation: slideup .25s ease; }
   @keyframes slideup { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }

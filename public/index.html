@@ -100,7 +100,8 @@
         <button id="btnZoom" class="hbtn" title="Zoom board">🔍</button>
         <button id="btnSound" class="hbtn" title="Sound">🔊</button>
         <button id="btnDesign" class="hbtn" title="Board design">🎨</button>
-        <button id="btnPanel" class="hbtn" title="Log and chat">💬<span id="chatBadge" class="badge hidden"></span></button>
+        <button id="btnReact" class="hbtn" title="React">😊</button>
+        <button id="btnPanel" class="hbtn" title="Game log">📜</button>
         <button id="btnRules" class="hbtn" title="Rules">?</button>
       </div>
     </div>
@@ -116,28 +117,21 @@
     </div>
 
     <div class="side-top">
+      <div id="reactions" class="reactions hidden"></div>
       <div id="turnBanner" class="turn-banner"></div>
       <div id="prompt" class="prompt"></div>
-      <div class="hand-row">
-        <div id="hand" class="hand"></div>
-        <div id="reactions" class="reactions"></div>
-      </div>
+      <div id="hand" class="hand"></div>
       <div id="gameError" class="error"></div>
     </div>
 
     <aside id="panel" class="panel hidden">
       <div class="panel-tabs">
         <button class="tab sel" data-tab="log">Log</button>
-        <button class="tab" data-tab="chat">Chat</button>
         <button class="tab" data-tab="fair">Fairness</button>
         <button id="btnPanelClose" class="hbtn" title="Close">✕</button>
       </div>
       <div class="panel-body">
         <div id="tabLog" class="tabpane"><div id="log" class="log"></div></div>
-        <div id="tabChat" class="tabpane hidden">
-          <div id="chat" class="chat"></div>
-          <form id="chatForm" class="row"><input id="chatInput" maxlength="200" placeholder="Say something" /><button class="secondary">Send</button></form>
-        </div>
         <div id="tabFair" class="tabpane hidden"><div id="fairness" class="fairness"></div></div>
       </div>
       <div class="panel-foot"><button id="btnRematch" class="primary hidden">Play again</button></div>

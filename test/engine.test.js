@@ -34,7 +34,7 @@ test('shuffle is a permutation', () => {
 });
 
 test('first deal is 5 cards, later deals 4; one deck is used exactly for 4 players', () => {
-  const st = game(4);
+  const st = game(4, { complexCards: false }); // every turn must consume exactly one card here
   assert.equal(st.hands[0].length, 5);
   assert.equal(st.stock.length, 52 - 20);
   // play through all three deals of the first deck (5+4+4 = 13 cards each)

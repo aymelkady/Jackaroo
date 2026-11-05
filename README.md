@@ -7,10 +7,10 @@ A live, multiplayer web version of **Jackaroo** (Jakaroo), the marbles-and-cards
 - **Fair**: the server shuffles with a cryptographic random generator (`crypto.randomInt`, unbiased Fisher-Yates). Each player only ever receives their own hand. Every deck's order is committed with a SHA-256 hash before the first card is dealt and revealed when the deck is used up, so anyone can verify no deal was changed after the fact (see "Fairness check" in the game).
 - **Teams**: random teams at start, or pick your own seat in the lobby to choose your partner.
 - **Bots**: the host can add simple bots to fill empty seats or to try the game alone.
-- **Chat and emoji reactions** that pop up over the player's seat, sounds, a vibration when it is your turn (mute button in the top bar), marbles that hop hole by hole, cards that fly to the discard pile, confetti on the win.
+- **Emoji reactions** that pop up over the player's seat, sounds, a vibration when it is your turn (mute button in the top bar), marbles that hop hole by hole, cards that fly to the discard pile, confetti on the win.
 - **Cards as your table plays them**: black Jack swaps, red Jack moves 11, red Queen burns a card of your choice from the next player, 10 moves or makes the next player burn. All in RULES.md, with a lobby toggle.
 - **Boards to choose from**: the real Saudi cross board (walnut, gold inlay, start pens on the diagonals, name plates by the centre oval), Andalusian walnut with brass khatim inlay (square or octagon), ebony with mother-of-pearl, plain oak, or the classic round board. Each player picks their own on their device.
-- **Plays like a game, not a web page**: full-screen table, avatar chips on the board with cards left and a glowing turn, fanned hand, event toasts, a slide-in panel for log, chat and fairness, round HUD buttons.
+- **Plays like a game, not a web page**: full-screen table, avatar chips on the board with cards left and a glowing turn, fanned hand, event toasts, a slide-in panel for the log and the fairness check, round HUD buttons.
 - **Phones first**: works in Safari on iPhone and Chrome on Android. Add it to the home screen and it opens full-screen like an app (web app manifest + service worker). The board rotates so your own seat is always at the bottom, holes are numbered 1–18 from each base, the holes you can reach light up when you pick a card and you can tap a lit hole to move there. The hand docks at the bottom of the phone and a zoom button enlarges the board.
 
 Rules, including which house rules are used and which can be toggled, are in [RULES.md](RULES.md). The track has 19 holes per player (base + 18); change `cellsPerPlayer` in `server/engine.js` if your wooden board counts differently.
@@ -59,6 +59,10 @@ Free-plan behaviour: the service sleeps after ~15 minutes with nobody connected 
 1. Create a free database at [upstash.com](https://upstash.com) (Redis, any region near you).
 2. Put its **REST URL** and **REST token** into the Render service's environment as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
 3. Redeploy. Every game is saved there after every move. Games expire after 30 days of inactivity.
+
+### Use the GitHub Pages link with your server
+
+If you run the server (Render or elsewhere) you can make the Pages link talk to it instead of playing peer-to-peer: in the repository go to *Settings → Secrets and variables → Actions → Variables* and add `JK_SERVER` with your server URL (for example `https://jackaroo-xxxx.onrender.com`). The next publish bakes it into the static site.
 
 ### Other hosts
 

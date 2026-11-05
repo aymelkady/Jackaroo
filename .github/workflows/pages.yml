@@ -21,6 +21,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: sh scripts/build-pages.sh
+        env:
+          JK_SERVER: ${{ vars.JK_SERVER }}
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
