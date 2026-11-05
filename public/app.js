@@ -556,7 +556,9 @@
       <rect id="discardCard" class="pile-face" x="${500 + 10}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
       <text id="discardTxt" class="pile-txt" x="${500 + 10 + cw / 2}" y="${py + ch / 2 + 8}"></text>
     </g>`;
-    h += `<circle id="turnRing" class="turn-ring" r="20" cx="-100" cy="-100"/><g id="targets"></g><g id="marbles"></g><g id="bubbles"></g>`;
+    h += `<radialGradient id="spotGrad"><stop offset="0" stop-color="#ffd977" stop-opacity=".55"/><stop offset=".6" stop-color="#ffd977" stop-opacity=".12"/><stop offset="1" stop-color="#ffd977" stop-opacity="0"/></radialGradient>
+      <circle id="spot" class="spot" r="${(g.gap * 4.2).toFixed(0)}" cx="500" cy="500" fill="url(#spotGrad)" style="mix-blend-mode:screen;pointer-events:none"/>
+      <circle id="turnRing" class="turn-ring" r="20" cx="-100" cy="-100"/><g id="targets"></g><g id="fx"></g><g id="marbles"></g><g id="bubbles"></g>`;
     svg.innerHTML = h;
     svg.dataset.key = boardKey;
   }
@@ -706,29 +708,78 @@
     const fromT = `translate(${from.x}px, ${from.y}px)`;
     el.style.transition = 'none';
     if (m.zone === 'home' && prev.zone !== 'home') {
-      // killed: shrink away where it stood, then reappear at home
+      // killed: knocked off the hole away from the centre, spinning and fading, then drops back into home
+      const dx = from.x - 500, dy = from.y - 500, dl = Math.hypot(dx, dy) || 1;
+      const kx = from.x + (dx / dl) * 70, ky = from.y + (dy / dl) * 70 - 30;
       el.style.transform = fromT;
-      const a = el.animate([{ transform: `${fromT} scale(1)`, opacity: 1 }, { transform: `${fromT} scale(0)`, opacity: 0 }], { duration: 320, easing: 'ease-in' });
-      a.onfinish = () => { el.style.transform = target; el.animate([{ transform: `${target} scale(0)` }, { transform: `${target} scale(1)` }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
+      fxBurst(from, '#ff6b5e');
+      const a = el.animate([
+        { transform: `${fromT} scale(1) rotate(0deg)`, opacity: 1 },
+        { transform: `translate(${kx}px, ${ky}px) scale(1.25) rotate(260deg)`, opacity: .9, offset: .55 },
+        { transform: `translate(${kx + (dx / dl) * 30}px, ${ky + 60}px) scale(.4) rotate(420deg)`, opacity: 0 },
+      ], { duration: 620, easing: 'cubic-bezier(.3,.6,.6,1)' });
+      a.onfinish = () => { el.style.transform = target; el.animate([{ transform: `${target} translateY(-40px) scale(1.2)`, opacity: 0 }, { transform: `${target} translateY(0) scale(1)`, opacity: 1, offset: .6 }, { transform: `${target} scale(1.15, .85)`, offset: .75 }, { transform: `${target} scale(1)` }], { duration: 480, easing: 'ease-out' }); };
       return;
     }
     const pts = pathPoints(prev, m);
     if (pts) {
+      // one visible jump per hole: the marble rises and grows (closer to the eye), then lands with a squash
       const frames = [{ transform: `${fromT} scale(1)` }];
       let last = from;
       for (const q of pts) {
-        frames.push({ transform: `translate(${(last.x + q.x) / 2}px, ${(last.y + q.y) / 2 - 6}px) scale(1.28)` });
-        frames.push({ transform: `translate(${q.x}px, ${q.y}px) scale(1)` });
+        frames.push({ transform: `translate(${(last.x + q.x) / 2}px, ${(last.y + q.y) / 2 - 16}px) scale(1.45)`, easing: 'ease-in' });
+        frames.push({ transform: `translate(${q.x}px, ${q.y}px) scale(1.12, .9)`, easing: 'ease-out' });
         last = q;
       }
-      const dur = Math.min(1400, 70 + pts.length * 95);
+      frames.push({ transform: `${target} scale(1)` });
+      const dur = Math.min(1500, 90 + pts.length * 115);
       el.style.transform = target;
-      el.animate(frames, { duration: dur, easing: 'linear' });
+      const a = el.animate(frames, { duration: dur, easing: 'linear' });
+      a.onfinish = () => { fxRipple(p); if (m.zone === 'safe') fxSparkle(p); };
       return;
     }
-    // exit from home, swap, or anything else: smooth slide with a lift
+    // exit from home, swap, or anything else: an arc with a lift, then a ripple
     el.style.transform = target;
-    el.animate([{ transform: `${fromT} scale(1)` }, { transform: `translate(${(from.x + p.x) / 2}px, ${(from.y + p.y) / 2}px) scale(1.35)` }, { transform: `${target} scale(1)` }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    const a = el.animate([{ transform: `${fromT} scale(1)` }, { transform: `translate(${(from.x + p.x) / 2}px, ${(from.y + p.y) / 2 - 24}px) scale(1.5)` }, { transform: `${target} scale(1.1, .9)`, offset: .9 }, { transform: `${target} scale(1)` }], { duration: 560, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    a.onfinish = () => fxRipple(p);
+  }
+
+  // ---------- board effects (SVG) ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  function fxRipple(p) {
+    const fx = $('fx'); if (!fx || reducedMotion) return;
+    const g = geometry();
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', g.rc); c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#ffe6a8'); c.setAttribute('stroke-width', '3');
+    fx.appendChild(c);
+    c.animate([{ r: g.rc, opacity: .9 }, { r: g.rc * 2.6, opacity: 0 }], { duration: 520, easing: 'ease-out' }).onfinish = () => c.remove();
+  }
+  function fxSparkle(p) {
+    const fx = $('fx'); if (!fx || reducedMotion) return;
+    for (let i = 0; i < 6; i++) {
+      const t = document.createElementNS(NS, 'text');
+      t.textContent = '✦'; t.setAttribute('x', p.x); t.setAttribute('y', p.y); t.setAttribute('fill', '#ffe08a'); t.setAttribute('font-size', 14 + Math.random() * 10); t.setAttribute('text-anchor', 'middle');
+      fx.appendChild(t);
+      const a = (i / 6) * Math.PI * 2 + Math.random();
+      t.animate([{ transform: 'translate(0,0) scale(.4)', opacity: 1 }, { transform: `translate(${Math.cos(a) * 46}px, ${Math.sin(a) * 46 - 20}px) scale(1.2)`, opacity: 0 }], { duration: 800 + Math.random() * 300, easing: 'ease-out' }).onfinish = () => t.remove();
+    }
+  }
+  function fxBurst(p, color) {
+    const fx = $('fx'); if (!fx || reducedMotion) return;
+    for (let i = 0; i < 10; i++) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 3 + Math.random() * 3); c.setAttribute('fill', color);
+      fx.appendChild(c);
+      const a = Math.random() * Math.PI * 2, d = 30 + Math.random() * 40;
+      c.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d}px)`, opacity: 0 }], { duration: 500 + Math.random() * 300, easing: 'ease-out' }).onfinish = () => c.remove();
+    }
+  }
+  function moveSpot(seat) {
+    const sp = $('spot'); if (!sp) return;
+    const g = geometry();
+    const b = g.track[(seat * g.cpp) % g.L];
+    sp.style.transition = reducedMotion ? 'none' : 'transform .7s cubic-bezier(.2,.8,.2,1)';
+    sp.style.transform = `translate(${b.x - 500}px, ${b.y - 500}px)`;
   }
 
   function renderMarbles() {
@@ -798,6 +849,57 @@
     })(t0);
   }
 
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function cardFaceHTML(c) {
+    const red = c.suit === 'H' || c.suit === 'D';
+    const inner = c.rank === 'JOKER' ? `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>` : `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
+    return `<div class="pcard${red ? ' red' : ''}${c.rank === 'JOKER' ? ' joker' : ''}" style="margin:0">${inner}</div>`;
+  }
+  function rectOfSeat(seat) {
+    const chip = document.querySelector(`.seat-chip[data-seat="${seat}"]`);
+    return chip ? chip.getBoundingClientRect() : null;
+  }
+  function rectOfDeck() { const r = document.querySelector('#piles rect.pile-card:nth-of-type(2)'); return r ? r.getBoundingClientRect() : null; }
+  // a card back flies from one rect to another; optional flip reveals `card` halfway
+  function flyBetween(from, to, { card = null, delay = 0, duration = 600, fade = false, size = 1 } = {}) {
+    if (!from || !to || reducedMotion) return;
+    const w = 52 * size, h = 74 * size;
+    const el = document.createElement('div');
+    el.className = 'flycard cardback';
+    el.style.cssText = `left:${from.left + from.width / 2 - w / 2}px;top:${from.top + from.height / 2 - h / 2}px;width:${w}px;height:${h}px;transition:none;opacity:0`;
+    $('flyLayer').appendChild(el);
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
+    const rot = (Math.random() - .5) * 30;
+    setTimeout(() => {
+      el.style.opacity = '1';
+      const a = el.animate([
+        { transform: 'translate(0,0) rotate(0deg) scaleX(1)' },
+        { transform: `translate(${dx * .5}px, ${dy * .5 - 40}px) rotate(${rot / 2}deg) scaleX(${card ? 0 : 1})`, offset: .5 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${rot}deg) scaleX(1)`, opacity: fade ? .15 : 1 },
+      ], { duration, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' });
+      if (card) setTimeout(() => { el.classList.remove('cardback'); el.innerHTML = cardFaceHTML(card); }, duration * .5);
+      a.onfinish = () => setTimeout(() => el.remove(), 120);
+    }, delay);
+  }
+  function dealAnimation(perSeat) {
+    const deck = rectOfDeck(); if (!deck || reducedMotion) return;
+    const mySeat = you ? you.seat : -1;
+    let k = 0;
+    const n = state.settings.players;
+    for (let round = 0; round < perSeat; round++) {
+      for (let i = 1; i <= n; i++) {
+        const seat = (state.dealer + i) % n;
+        if (seat === mySeat) {
+          const cardEl = $('hand').children[round];
+          if (cardEl) flyBetween(deck, cardEl.getBoundingClientRect(), { delay: k * 70, duration: 520, size: 1 });
+        } else {
+          flyBetween(deck, rectOfSeat(seat), { delay: k * 70, duration: 520, fade: true, size: .6 });
+        }
+        k++;
+      }
+    }
+    sfx.deal();
+  }
   function flyCard(cardEl) {
     const from = cardEl.getBoundingClientRect();
     const pile = $('discardCard'); if (!pile) return;
@@ -874,7 +976,7 @@
       you.hand.forEach((c, idx) => {
         const el = document.createElement('div');
         const red = c.suit === 'H' || c.suit === 'D';
-        if (fresh) { el.classList.add('dealin'); el.style.animationDelay = `${idx * 90}ms`; }
+        if (fresh && !reducedMotion) { el.classList.add('dealin'); el.style.animationDelay = `${420 + idx * 70 * n}ms`; }
         el.className += ' pcard' + (red ? ' red' : '') + (c.rank === 'JOKER' ? ' joker' : '') + (sel.cardId === c.id ? ' sel' : '') + (myTurn && !playable.has(c.id) ? ' dead' : '');
         el.title = HINT[c.rank] || '';
         el.innerHTML = c.rank === 'JOKER' ? `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>` : `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
@@ -930,9 +1032,12 @@
       if (lastMoveAt) {
         const txt = state.log.length ? state.log[state.log.length - 1].text : '';
         const killed = state.log.slice(-2).some((l) => /sends .* home/.test(l.text));
-        if (state.phase === 'finished') { sfx.win(); confetti(); }
+        const lm = state.lastMove;
+        if (lm.seat !== mySeat && lm.kind !== 'tenBurn' && lm.kind !== 'queenBurn') flyBetween(rectOfSeat(lm.seat), $('discardCard').getBoundingClientRect(), { card: lm.card, duration: 650, fade: lm.kind === 'burn', size: .9 });
+        if (lm.kind === 'queenBurn' && lm.burned) flyBetween(rectOfSeat(nextSeatOf(lm.seat)), $('discardCard').getBoundingClientRect(), { card: lm.burned, duration: 700, fade: true, size: .9 });
+        if (state.phase === 'finished') { sfx.win(); confetti(); showWin(); }
         else if (killed) sfx.kill();
-        else if (/^Deal /.test(txt)) { sfx.move(); sfx.deal(); }
+        else if (/^Deal /.test(txt)) { sfx.move(); setTimeout(() => dealAnimation(you && you.hand ? you.hand.length : 4), 250); }
         else sfx.move();
         for (const e of [$('discardCard'), $('discardTxt')]) { e.classList.remove('discard-pop'); void e.getBoundingClientRect(); e.classList.add('discard-pop'); }
       }
@@ -940,7 +1045,21 @@
     }
     if (myTurn && !wasMyTurn && lastMoveAt) sfx.turn();
     wasMyTurn = !!myTurn;
+    if (state.phase === 'playing') moveSpot(state.turn);
+    if (state.dealNo !== lastDealNo && lastDealNo === 0 && state.phase === 'playing') setTimeout(() => dealAnimation(you && you.hand ? you.hand.length : 5), 700);
     lastDealNo = state.dealNo;
+  }
+  function nextSeatOf(seat) { return (seat + 1) % state.settings.players; }
+  function showWin() {
+    const t = state.winner;
+    const names = state.players.filter((p) => p.team === t).map((p) => p.name).join(' & ');
+    const mine = you && (you.seat % (state.settings.players / 2)) === t;
+    const el = document.createElement('div');
+    el.className = 'win-banner';
+    el.innerHTML = `<div class="trophy">🏆</div><div class="wt">${mine ? 'You win!' : `Team ${TEAM_NAMES[t]} wins`}</div><div class="wn">${esc(names)}</div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add('out'), 4200);
+    setTimeout(() => el.remove(), 5000);
   }
 
   async function sha256(text) {
@@ -980,6 +1099,7 @@
     else {
       const wasHidden = $('screenGame').classList.contains('hidden');
       showScreen('Game');
+      if (wasHidden) { const st = document.querySelector('.board-stage'); st.classList.remove('intro'); void st.offsetWidth; st.classList.add('intro'); }
       if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; }
       renderGame();
       if (wasHidden) requestAnimationFrame(() => { const w = document.querySelector('.board-wrap'); if (w.classList.contains('zoomed')) { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; } });
