@@ -7,9 +7,14 @@ A live, multiplayer web version of **Jackaroo** (Jakaroo), the marbles-and-cards
 - **Fair**: the server shuffles with a cryptographic random generator (`crypto.randomInt`, unbiased Fisher-Yates). Each player only ever receives their own hand. Every deck's order is committed with a SHA-256 hash before the first card is dealt and revealed when the deck is used up, so anyone can verify no deal was changed after the fact (see "Fairness check" in the game).
 - **Teams**: random teams at start, or pick your own seat in the lobby to choose your partner.
 - **Bots**: the host can add simple bots to fill empty seats or to try the game alone.
-- **Chat** inside the game.
+- **Chat** inside the game, sounds and a vibration when it is your turn (mute button in the top bar).
+- **Phones first**: works in Safari on iPhone and Chrome on Android. Add it to the home screen and it opens full-screen like an app (web app manifest + service worker). The board rotates so your own seat is always at the bottom, holes are numbered 1–18 from each base, and the holes you can reach light up when you pick a card.
 
-Rules, including which house rules are used and which can be toggled, are in [RULES.md](RULES.md).
+Rules, including which house rules are used and which can be toggled, are in [RULES.md](RULES.md). The track has 19 holes per player (base + 18); change `cellsPerPlayer` in `server/engine.js` if your wooden board counts differently.
+
+### Native iOS / Android apps
+
+The web app already installs to the home screen on both platforms. If you later want store listings, wrap the same `public/` folder with [Capacitor](https://capacitorjs.com) (`npx cap add ios`, `npx cap add android`) and point it at your deployed server URL; no game code changes are needed because all logic runs on the server.
 
 ## Run it locally
 

@@ -1,7 +1,7 @@
 /* Jackaroo client. Talks JSON over a WebSocket; the server owns all rules. */
 (() => {
   const $ = (id) => document.getElementById(id);
-  const TEAM_COLORS = [['#d32f2f', '#ff8a80'], ['#1565c0', '#82b1ff'], ['#2e7d32', '#a5d6a7'], ['#f9a825', '#fff59d']];
+  const TEAM_COLORS = [['#d8372a', '#ff8a7a'], ['#2a6fd8', '#8fbcff'], ['#2f9a4a', '#9be0a8'], ['#e6b43a', '#fff0a0']];
   const TEAM_NAMES = ['A', 'B', 'C', 'D'];
   const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣' };
   const HINT = {
@@ -13,9 +13,11 @@
   let code = null, token = null, playerId = null;
   let state = null, you = null;
   let sel = { cardId: null, picks: [] };
+  let hoverMarble = null;
   let pendingJoin = null; // message to send once the socket opens
   let boardKey = '';      // geometry cache key
   let geo = null;
+  let lastMoveAt = 0, wasMyTurn = false;
 
   // ---------- storage ----------
   const store = {
@@ -24,7 +26,35 @@
     token(c) { return localStorage.getItem('jk.tok.' + c); },
     setToken(c, t) { localStorage.setItem('jk.tok.' + c, t); const r = this.recent.filter((x) => x !== c); r.unshift(c); localStorage.setItem('jk.recent', JSON.stringify(r.slice(0, 5))); },
     get recent() { try { return JSON.parse(localStorage.getItem('jk.recent') || '[]'); } catch { return []; } },
+    get sound() { return localStorage.getItem('jk.sound') !== 'off'; },
+    set sound(v) { localStorage.setItem('jk.sound', v ? 'on' : 'off'); },
   };
+
+  // ---------- sound ----------
+  let audio = null;
+  function tone(freq, dur, type = 'sine', gain = 0.12, delay = 0) {
+    if (!store.sound) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, audio.currentTime + delay);
+      g.gain.exponentialRampToValueAtTime(gain, audio.currentTime + delay + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + delay + dur);
+      o.connect(g).connect(audio.destination);
+      o.start(audio.currentTime + delay); o.stop(audio.currentTime + delay + dur + 0.05);
+    } catch { /* no audio */ }
+  }
+  const sfx = {
+    move() { tone(900, 0.07, 'triangle', 0.08); tone(600, 0.09, 'triangle', 0.06, 0.05); },
+    kill() { tone(160, 0.25, 'sawtooth', 0.1); tone(90, 0.3, 'square', 0.06, 0.05); },
+    turn() { tone(660, 0.12, 'sine', 0.1); tone(990, 0.18, 'sine', 0.1, 0.12); if (navigator.vibrate) navigator.vibrate([60, 40, 60]); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, 'triangle', 0.12, i * 0.14)); },
+    deal() { for (let i = 0; i < 4; i++) tone(1200 + i * 80, 0.04, 'square', 0.03, i * 0.06); },
+  };
+  $('btnSound').textContent = store.sound ? '🔊' : '🔇';
+  $('btnSound').onclick = () => { store.sound = !store.sound; $('btnSound').textContent = store.sound ? '🔊' : '🔇'; if (store.sound) sfx.move(); };
 
   // ---------- socket ----------
   function connect() {
@@ -112,6 +142,7 @@
   $('btnShuffle').onclick = () => send({ type: 'shuffleSeats' });
   $('btnAddBot').onclick = () => send({ type: 'addBot' });
   $('btnCopy').onclick = async () => { try { await navigator.clipboard.writeText($('shareLink').href); $('btnCopy').textContent = 'copied'; setTimeout(() => ($('btnCopy').textContent = 'copy'), 1500); } catch { /* ignore */ } };
+  if (navigator.share) { $('btnShare').classList.remove('hidden'); $('btnShare').onclick = () => navigator.share({ title: 'Jackaroo', text: `Join my Jackaroo game, code ${state ? state.code : ''}`, url: $('shareLink').href }).catch(() => {}); }
 
   function renderLobby() {
     const n = state.settings.players;
@@ -159,17 +190,23 @@
     $('lobbyHint').textContent = full ? (isHost ? 'Everyone is in. Start when ready.' : 'Waiting for the host to start.') : `Waiting for ${n - state.players.length} more player(s). ${s.randomTeams ? 'Seats will be shuffled at start.' : 'Tap a seat to choose your partner (partners sit opposite).'}`;
   }
 
-  // ---------- game ----------
+  // ---------- colors ----------
   function seatColor(seat) { const n = state.settings.players; return TEAM_COLORS[seat % (n / 2)][seat < n / 2 ? 0 : 1]; }
   function nameOf(seat) { const p = state.players.find((x) => x.seat === seat); return p ? p.name : `Seat ${seat + 1}`; }
+  function shade(hex, k) { // k>0 lighten towards white, k<0 darken
+    const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    const f = (c) => Math.max(0, Math.min(255, Math.round(k > 0 ? c + (255 - c) * k : c * (1 + k))));
+    return `#${((f(r) << 16) | (f(g) << 8) | f(b)).toString(16).padStart(6, '0')}`;
+  }
 
+  // ---------- geometry ----------
   function geometry() {
     const s = state.settings;
     const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
     const mySeat = you ? you.seat : 0;
     const key = `${n}-${cpp}-${s.safeCells}-${mySeat}`;
     if (boardKey === key) return geo;
-    const cx = 500, cy = 500, Rt = 385;
+    const cx = 500, cy = 500, Rt = 380;
     const step = (2 * Math.PI) / L;
     const rc = Math.min(14.5, (Rt * step) * 0.44);
     // rotate the board so the viewer's own base sits at the bottom
@@ -183,47 +220,102 @@
       const a = ang(seat * cpp);
       safe.push(Array.from({ length: s.safeCells }, (_, k) => pt(a, Rt - gap * (k + 1))));
       const spread = Math.min(step * 1.6, 0.11);
-      const homeR = Rt + Math.max(22, rc * 2.3);
+      const homeR = Rt + Math.max(24, rc * 2.4);
       home.push(Array.from({ length: s.marblesPerPlayer }, (_, k) => pt(a + (k - 1.5) * spread, homeR)));
-      label.push(pt(a, homeR + rc * 2 + 26));
+      label.push(pt(a, homeR + rc * 2 + 24));
     }
     geo = { L, cx, cy, Rt, rc, track, safe, home, label, cpp };
     boardKey = key;
     return geo;
   }
 
+  function cellPos(owner, zone, pos) {
+    const g = geometry();
+    if (zone === 'track') return g.track[(owner * g.cpp + pos) % g.L];
+    return g.safe[owner][pos];
+  }
   function marblePos(m) {
     const g = geometry();
-    if (m.zone === 'track') return g.track[(m.owner * g.cpp + m.pos) % g.L];
-    if (m.zone === 'safe') return g.safe[m.owner][m.pos];
-    const k = Number(m.id.split('_')[1]);
-    return g.home[m.owner][k];
+    if (m.zone === 'home') return g.home[m.owner][Number(m.id.split('_')[1])];
+    return cellPos(m.owner, m.zone, m.pos);
   }
 
   function drawBoardStatic() {
     const g = geometry();
     const svg = $('board');
     const n = state.settings.players;
-    let h = '';
-    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${g.Rt + g.rc * 1.4}" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="${g.rc * 2.9}"/>`;
+    const R = g.Rt + Math.max(24, g.rc * 2.4) + g.rc * 2 + 48; // board edge
+    let h = `<defs>
+      <radialGradient id="woodGrad" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="#c99a63"/><stop offset=".55" stop-color="#a9743f"/><stop offset="1" stop-color="#6e4420"/></radialGradient>
+      <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a4a22"/><stop offset=".5" stop-color="#3d2410"/><stop offset="1" stop-color="#6a3f1c"/></linearGradient>
+      <radialGradient id="holeGrad" cx="40%" cy="35%" r="65%"><stop offset="0" stop-color="#3a2614"/><stop offset=".6" stop-color="#1b110a"/><stop offset="1" stop-color="#4a3118"/></radialGradient>
+      <linearGradient id="cardBack" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8e2b2b"/><stop offset="1" stop-color="#5a1414"/></linearGradient>
+      <filter id="woodgrain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.006 0.09" numOctaves="4" seed="11" result="noise"/>
+        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.45  0 0 0 0 0.3  0 0 0 0 0.15  0 0 0 0.55 0" result="grain"/>
+        <feComposite in="grain" in2="SourceGraphic" operator="in" result="clipped"/>
+        <feBlend in="SourceGraphic" in2="clipped" mode="multiply"/>
+      </filter>
+      <filter id="inset" x="-20%" y="-20%" width="140%" height="140%">
+        <feOffset dx="0" dy="2" in="SourceAlpha" result="o"/><feGaussianBlur in="o" stdDeviation="1.5" result="b"/>
+        <feComposite in="b" in2="SourceAlpha" operator="out" result="s"/><feFlood flood-color="#000" flood-opacity=".7"/><feComposite in2="s" operator="in" result="sh"/>
+        <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="sh"/></feMerge>
+      </filter>
+      <filter id="mshadow" x="-60%" y="-60%" width="240%" height="240%"><feDropShadow dx="1.5" dy="3" stdDeviation="1.6" flood-color="#000" flood-opacity=".55"/></filter>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+    for (let seat = 0; seat < n; seat++) {
+      const c = seatColor(seat);
+      h += `<radialGradient id="mg${seat}" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="${shade(c, 0.75)}"/><stop offset=".25" stop-color="${shade(c, 0.25)}"/><stop offset=".7" stop-color="${c}"/><stop offset="1" stop-color="${shade(c, -0.55)}"/></radialGradient>`;
+    }
+    h += `</defs>`;
+    // board body
+    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${R + 14}" fill="url(#rimGrad)"/>`;
+    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${R}" fill="url(#woodGrad)" filter="url(#woodgrain)"/>`;
+    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${R - 3}" fill="none" stroke="rgba(255,220,170,.25)" stroke-width="2"/>`;
+    // track groove
+    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${g.Rt}" fill="none" stroke="rgba(0,0,0,.16)" stroke-width="${g.rc * 2.8}"/>`;
+    h += `<circle cx="${g.cx}" cy="${g.cy}" r="${g.Rt}" fill="none" stroke="rgba(255,235,200,.12)" stroke-width="1"/>`;
+    // holes
+    let nums = '';
     g.track.forEach((p, i) => {
       const isBase = i % g.cpp === 0;
       const seat = i / g.cpp;
-      const stroke = isBase ? ` style="stroke:${seatColor(seat)}"` : '';
-      h += `<circle class="cell${isBase ? ' base' : ''}" data-abs="${i}" cx="${p.x}" cy="${p.y}" r="${isBase ? g.rc * 1.15 : g.rc}"${stroke}/>`;
+      h += `<circle class="hole${isBase ? ' base-ring' : ''}" data-abs="${i}" cx="${p.x}" cy="${p.y}" r="${isBase ? g.rc * 1.12 : g.rc}" ${isBase ? `style="stroke:${seatColor(seat)}"` : ''} filter="url(#inset)"/>`;
+      if (!isBase) nums += `<text class="num" x="${p.x}" y="${p.y + g.rc * 0.38}" style="font-size:${(g.rc * 0.95).toFixed(1)}px">${i % g.cpp}</text>`;
+      else nums += `<text class="num" x="${p.x}" y="${p.y + g.rc * 0.45}" style="font-size:${(g.rc * 1.1).toFixed(1)}px;fill:${seatColor(seat)};opacity:.9">★</text>`;
     });
     for (let seat = 0; seat < n; seat++) {
-      g.safe[seat].forEach((p) => { h += `<circle class="cell safe" cx="${p.x}" cy="${p.y}" r="${g.rc}" style="stroke:${seatColor(seat)}"/>`; });
-      g.home[seat].forEach((p) => { h += `<circle class="cell home" cx="${p.x}" cy="${p.y}" r="${g.rc * .95}"/>`; });
+      const c = seatColor(seat);
+      g.safe[seat].forEach((p, k) => { h += `<circle class="hole" cx="${p.x}" cy="${p.y}" r="${g.rc}" style="stroke:${c};stroke-width:1.8" filter="url(#inset)"/>`; nums += `<text class="num" x="${p.x}" y="${p.y + g.rc * 0.38}" style="font-size:${(g.rc * 0.85).toFixed(1)}px;fill:${c};opacity:.7">${k + 1}</text>`; });
+      // home tray
+      const hp = g.home[seat];
+      const mx = (hp[0].x + hp[3].x) / 2, my = (hp[0].y + hp[3].y) / 2;
+      const len = Math.hypot(hp[3].x - hp[0].x, hp[3].y - hp[0].y) + g.rc * 3.2;
+      const rot = Math.atan2(hp[3].y - hp[0].y, hp[3].x - hp[0].x) * 180 / Math.PI;
+      h += `<rect x="${mx - len / 2}" y="${my - g.rc * 1.6}" width="${len}" height="${g.rc * 3.2}" rx="${g.rc * 1.6}" fill="rgba(0,0,0,.22)" stroke="${c}" stroke-opacity=".45" transform="rotate(${rot} ${mx} ${my})"/>`;
+      hp.forEach((p) => { h += `<circle class="hole" cx="${p.x}" cy="${p.y}" r="${g.rc * .95}" filter="url(#inset)"/>`; });
       const lp = g.label[seat];
-      h += `<text id="lbl${seat}" class="lbl" x="${lp.x}" y="${lp.y + 7}" style="fill:${seatColor(seat)}"></text>`;
+      h += `<text id="lbl${seat}" class="lbl" x="${lp.x}" y="${lp.y + 7}" style="fill:${c}"></text>`;
     }
-    h += `<text id="centerText" class="center-text" x="${g.cx}" y="${g.cy - 8}"></text><text id="centerSub" class="center-sub" x="${g.cx}" y="${g.cy + 24}"></text>`;
-    h += `<g id="marbles"></g>`;
+    h += nums;
+    // centre: title, status, piles
+    h += `<text class="center-title" x="${g.cx}" y="${g.cy - 70}">JACKAROO</text>`;
+    h += `<text id="centerText" class="center-text" x="${g.cx}" y="${g.cy - 22}"></text><text id="centerSub" class="center-sub" x="${g.cx}" y="${g.cy + 6}"></text>`;
+    const cw = 54, ch = 76, py = g.cy + 36;
+    h += `<g id="piles">
+      <rect class="pile-card" x="${g.cx - cw - 10 + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6"/>
+      <rect class="pile-card" x="${g.cx - cw - 10}" y="${py}" width="${cw}" height="${ch}" rx="6"/>
+      <rect x="${g.cx - cw - 10 + 5}" y="${py + 5}" width="${cw - 10}" height="${ch - 10}" rx="4" fill="none" stroke="rgba(255,220,180,.5)" stroke-dasharray="3 2"/>
+      <text id="stockCnt" class="pile-cnt" x="${g.cx - cw / 2 - 10}" y="${py + ch / 2 + 5}"></text>
+      <rect id="discardCard" class="pile-face" x="${g.cx + 10}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
+      <text id="discardTxt" class="pile-txt" x="${g.cx + 10 + cw / 2}" y="${py + ch / 2 + 8}"></text>
+    </g>`;
+    h += `<g id="targets"></g><g id="marbles"></g>`;
     svg.innerHTML = h;
     svg.dataset.key = boardKey;
   }
 
+  // ---------- move selection ----------
   function candidateMoves() {
     if (!you || !you.legalMoves) return [];
     return you.legalMoves.filter((m) => m.cardId === sel.cardId && sel.picks.every((p, i) => m.picks[i] && m.picks[i].value === p));
@@ -246,7 +338,39 @@
   }
   function pick(value) {
     sel.picks.push(value);
+    hoverMarble = null;
     if (!tryCommit()) renderGame();
+  }
+
+  function marbleById(id) { return state.marbles.find((m) => m.id === id); }
+  function destinationsOf(mv) {
+    const out = [];
+    const kills = new Set(mv.kills || []);
+    const add = (owner, to, viaMarble) => { if (to) out.push({ owner, zone: to.zone, pos: to.pos, kill: kills.size > 0 && viaMarble }); };
+    if (mv.kind === 'jack') { add(marbleById(mv.marbleId).owner, { zone: 'track', pos: mv.toA }); add(marbleById(mv.targetId).owner, { zone: 'track', pos: mv.toB }); }
+    else if (mv.kind === 'seven') for (const p of mv.parts) add(marbleById(p.marbleId).owner, p.to, true);
+    else if (mv.marbleId && mv.to) add(marbleById(mv.marbleId).owner, mv.to, true);
+    return out;
+  }
+
+  function renderTargets() {
+    const grp = $('targets');
+    if (!grp) return;
+    let cands = candidateMoves().filter((m) => m.kind !== 'burn');
+    const depth = sel.picks.length;
+    if (hoverMarble) cands = cands.filter((m) => m.picks[depth] && m.picks[depth].type === 'marble' && m.picks[depth].value === hoverMarble);
+    const g = geometry();
+    const seen = new Set();
+    let h = '';
+    for (const mv of cands) {
+      for (const d of destinationsOf(mv)) {
+        const k = `${d.owner}-${d.zone}-${d.pos}`;
+        if (seen.has(k)) continue; seen.add(k);
+        const p = cellPos(d.owner, d.zone, d.pos);
+        h += `<circle class="target${d.kill ? ' kill' : ''}" cx="${p.x}" cy="${p.y}" r="${g.rc * 1.35}" filter="url(#glow)"/>`;
+      }
+    }
+    grp.innerHTML = h;
   }
 
   function renderMarbles() {
@@ -262,9 +386,15 @@
       if (!el) {
         el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         el.classList.add('marble'); el.dataset.id = m.id;
-        el.innerHTML = `<circle class="halo" r="0" fill="none" stroke="#fff" stroke-width="3"/><circle class="ring" r="${g.rc * 1.05}" fill="none" stroke="none"/><circle class="body" r="${g.rc * .78}"/><circle r="${g.rc * .25}" cx="${-g.rc * .25}" cy="${-g.rc * .25}" fill="rgba(255,255,255,.55)" stroke="none"/>`;
-        el.querySelector('.body').setAttribute('fill', seatColor(m.owner));
+        const r = g.rc * 0.86;
+        el.innerHTML = `<circle class="halo" r="0" fill="none" stroke="#ffd369" stroke-width="3"/>
+          <circle class="ring" r="${g.rc * 1.1}" fill="none" stroke="none"/>
+          <g filter="url(#mshadow)"><circle class="body" r="${r}" fill="url(#mg${m.owner})"/></g>
+          <ellipse rx="${r * .32}" ry="${r * .2}" cx="${-r * .35}" cy="${-r * .42}" fill="rgba(255,255,255,.85)" transform="rotate(-30 ${-r * .35} ${-r * .42})"/>
+          <circle r="${r * .1}" cx="${r * .3}" cy="${r * .35}" fill="rgba(255,255,255,.35)"/>`;
         el.onclick = () => { if (el.classList.contains('pick')) pick(m.id); };
+        el.onmouseenter = () => { if (el.classList.contains('pick')) { hoverMarble = m.id; renderTargets(); } };
+        el.onmouseleave = () => { if (hoverMarble === m.id) { hoverMarble = null; renderTargets(); } };
         grp.appendChild(el);
       }
       el.style.transform = `translate(${p.x}px, ${p.y}px)`;
@@ -273,7 +403,6 @@
       existing.delete(m.id);
     }
     for (const el of existing.values()) el.remove();
-    // picked marbles should render on top
     for (const id of picks) { const el = grp.querySelector(`g.marble[data-id="${id}"]`); if (el) grp.appendChild(el); }
   }
 
@@ -288,8 +417,13 @@
     }
     const mySeat = you ? you.seat : null;
     const myTurn = you && state.phase === 'playing' && state.turn === mySeat;
-    $('centerText').textContent = state.phase === 'finished' ? `Team ${TEAM_NAMES[state.winner]} wins` : (state.phase === 'playing' ? `${nameOf(state.turn)}'s turn` : '');
-    $('centerSub').textContent = state.phase === 'finished' ? state.players.filter((p) => p.team === state.winner).map((p) => p.name).join(' & ') : `Deck ${state.stockCount} · Deal ${state.dealNo}`;
+    $('centerText').textContent = state.phase === 'finished' ? `Team ${TEAM_NAMES[state.winner]} wins` : (state.phase === 'playing' ? (myTurn ? 'Your turn' : `${nameOf(state.turn)}'s turn`) : '');
+    $('centerSub').textContent = state.phase === 'finished' ? state.players.filter((p) => p.team === state.winner).map((p) => p.name).join(' & ') : `Deal ${state.dealNo}`;
+    $('stockCnt').textContent = state.stockCount;
+    const dt = state.discardTop;
+    $('discardCard').setAttribute('opacity', dt ? 1 : 0);
+    $('discardTxt').textContent = dt ? (dt.rank === 'JOKER' ? '★' : dt.rank + SUIT[dt.suit]) : '';
+    $('discardTxt').setAttribute('fill', dt && (dt.suit === 'H' || dt.suit === 'D') ? '#c0392b' : '#1a1a1a');
 
     const banner = $('turnBanner');
     if (state.phase === 'finished') { banner.textContent = `Game over. Team ${TEAM_NAMES[state.winner]} wins!`; banner.className = 'turn-banner'; }
@@ -311,6 +445,8 @@
     // hand
     const hand = $('hand');
     hand.innerHTML = '';
+    const pr = $('prompt');
+    let promptSet = false;
     if (you && you.hand) {
       const playable = new Set((you.legalMoves || []).map((m) => m.cardId));
       const onlyBurn = (you.legalMoves || []).length > 0 && you.legalMoves.every((m) => m.kind === 'burn');
@@ -321,38 +457,38 @@
         el.title = HINT[c.rank] || '';
         el.innerHTML = c.rank === 'JOKER' ? `<div class="r">★</div><div class="s">JOKER</div><div class="b">★</div>` : `<div class="r">${c.rank}</div><div class="s">${SUIT[c.suit]}</div><div class="b">${c.rank}</div>`;
         el.onclick = () => {
-          if (!myTurn) return;
-          if (!playable.has(c.id)) return;
+          if (!myTurn || !playable.has(c.id)) return;
           sel = sel.cardId === c.id ? { cardId: null, picks: [] } : { cardId: c.id, picks: [] };
-          if (sel.cardId && !tryCommit()) renderGame();
-          else if (!sel.cardId) renderGame();
+          hoverMarble = null;
+          if (!(sel.cardId && tryCommit())) renderGame();
         };
         hand.appendChild(el);
       }
-      if (onlyBurn && myTurn && !sel.cardId) $('prompt').innerHTML = '<b>No legal move.</b> Pick a card to burn.';
+      if (onlyBurn && myTurn && !sel.cardId) { pr.innerHTML = '<b>No legal move.</b> Pick a card to burn.'; promptSet = true; }
     }
 
     // prompt
-    const pr = $('prompt');
     if (myTurn && sel.cardId) {
       const picks = nextPicks();
       const marblePicks = picks.filter((p) => p.type === 'marble');
       const optPicks = picks.filter((p) => p.type === 'option');
-      let html = '';
-      if (marblePicks.length) html += sel.picks.length === 0 ? 'Tap a highlighted marble.' : 'Now tap the second marble.';
+      const card = you.hand.find((c) => c.id === sel.cardId);
+      let html = `<b>${card ? (card.rank === 'JOKER' ? 'Joker' : card.rank + SUIT[card.suit]) : ''}</b> · `;
+      if (marblePicks.length) html += sel.picks.length === 0 ? 'tap a glowing marble (lit holes show where it can go)' : 'now tap the second marble';
       if (optPicks.length) html += `<div class="opts">${optPicks.map((p) => `<button class="secondary" data-v="${esc(p.value)}">${esc(p.label)}</button>`).join('')}</div>`;
       html += ` <button class="link" id="btnCancel">cancel</button>`;
       pr.innerHTML = html;
       pr.querySelectorAll('button[data-v]').forEach((b) => (b.onclick = () => pick(b.dataset.v)));
-      $('btnCancel').onclick = () => { sel = { cardId: null, picks: [] }; renderGame(); };
-    } else if (!(myTurn && you.legalMoves && you.legalMoves.every((m) => m.kind === 'burn'))) {
-      pr.innerHTML = myTurn ? 'Pick a card.' : '';
+      $('btnCancel').onclick = () => { sel = { cardId: null, picks: [] }; hoverMarble = null; renderGame(); };
+    } else if (!promptSet) {
+      pr.innerHTML = myTurn ? 'Pick a card. Dimmed cards have no legal move.' : '';
     }
 
     renderMarbles();
+    renderTargets();
 
     // log & chat
-    $('log').innerHTML = state.log.slice(-40).reverse().map((l) => `<div>${esc(l.text)}</div>`).join('');
+    $('log').innerHTML = state.log.slice(-40).reverse().map((l) => `<div class="${/sends .* home|wins!/.test(l.text) ? 'kill' : ''}">${esc(l.text)}</div>`).join('');
     const chat = $('chat');
     const atBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 10;
     chat.innerHTML = state.chat.map((c) => `<div><b style="color:${seatColor(c.seat)}">${esc(c.name)}:</b>${esc(c.text)}</div>`).join('');
@@ -360,6 +496,21 @@
 
     renderFairness();
     $('btnRematch').classList.toggle('hidden', !(state.phase === 'finished' && state.hostId === playerId));
+
+    // sounds
+    if (state.lastMove && state.lastMove.at !== lastMoveAt) {
+      if (lastMoveAt) {
+        const txt = state.log.length ? state.log[state.log.length - 1].text : '';
+        const killed = state.log.slice(-2).some((l) => /sends .* home/.test(l.text));
+        if (state.phase === 'finished') sfx.win();
+        else if (killed) sfx.kill();
+        else if (/^Deal /.test(txt)) { sfx.move(); sfx.deal(); }
+        else sfx.move();
+      }
+      lastMoveAt = state.lastMove.at;
+    }
+    if (myTurn && !wasMyTurn && lastMoveAt) sfx.turn();
+    wasMyTurn = !!myTurn;
   }
 
   async function sha256(text) {
@@ -388,7 +539,7 @@
     if (!state) return;
     $('topInfo').textContent = `Game ${state.code} · ${state.settings.players} players`;
     if (state.phase === 'lobby') { showScreen('Lobby'); renderLobby(); }
-    else { showScreen('Game'); if (state.phase !== 'playing' || !you || state.turn !== you.seat) sel = { cardId: null, picks: [] }; renderGame(); }
+    else { showScreen('Game'); if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; } renderGame(); }
   }
 
   function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -402,5 +553,7 @@
     const t = store.token(c);
     if (t) { code = c; token = t; } // auto-rejoin on open
   }
+  if (/iphone|ipad|android/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches) $('installHint').classList.remove('hidden');
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
   connect();
 })();

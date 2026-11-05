@@ -456,7 +456,7 @@ function movesForRank(state, seat, ctrl, rank) {
           const simA = simulateStep(state, a, s1);
           if (!simA.ok) continue;
           if (s1 === 7) {
-            out.push({ kind: 'seven', parts: [{ marbleId: a.id, steps: 7 }], picks: [pickMarble(a), { type: 'option', value: '7', label: 'All 7 steps' }] });
+            out.push({ kind: 'seven', parts: [{ marbleId: a.id, steps: 7, to: simA.to }], kills: simA.kills, to: simA.to, marbleId: a.id, picks: [pickMarble(a), { type: 'option', value: '7', label: 'All 7 steps' }] });
             continue;
           }
           // apply part A on a copy, then try part B
@@ -470,7 +470,8 @@ function movesForRank(state, seat, ctrl, rank) {
             if (!simB.ok) continue;
             out.push({
               kind: 'seven',
-              parts: [{ marbleId: a.id, steps: s1 }, { marbleId: b.id, steps: 7 - s1 }],
+              parts: [{ marbleId: a.id, steps: s1, to: simA.to }, { marbleId: b.id, steps: 7 - s1, to: simB.to }],
+              kills: [...simA.kills, ...simB.kills], marbleId: a.id,
               picks: [pickMarble(a), { type: 'option', value: String(s1), label: `${s1} steps, then ${7 - s1} with another` }, pickMarble(b)],
             });
           }
