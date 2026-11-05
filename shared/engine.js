@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS = {
   kingKills: true,     // King may also move 13 steps killing everything it passes
   fiveMovesAny: true,  // 5 may move ANY marble on the track (opponent or partner)
   jumpOwn: false,      // may a marble jump over another marble of the same player? (most tables: no)
+  complexCards: true,  // black J swaps / red J moves 11; red Q may make the next player burn a card of your choice; 10 may make the next player burn
   randomTeams: true,   // shuffle seats when the host starts the game
 };
 
@@ -26,6 +27,7 @@ export function normalizeSettings(input = {}) {
   if (typeof input.kingKills === 'boolean') s.kingKills = input.kingKills;
   if (typeof input.fiveMovesAny === 'boolean') s.fiveMovesAny = input.fiveMovesAny;
   if (typeof input.jumpOwn === 'boolean') s.jumpOwn = input.jumpOwn;
+  if (typeof input.complexCards === 'boolean') s.complexCards = input.complexCards;
   if (typeof input.randomTeams === 'boolean') s.randomTeams = input.randomTeams;
   return s;
 }
@@ -97,6 +99,7 @@ export function createGame({ code, hostId, settings }) {
     dealNo: 0,
     freshDeck: true,
     winner: null,
+    pendingBurn: null, // seat that must burn a card before playing (a 10 was played on them)
     log: [],
     lastMove: null,
     chat: [],
@@ -243,6 +246,7 @@ export function dealRound(state) {
     }
   }
   state.turn = (state.dealer + 1) % n;
+  state.pendingBurn = null;
   log(state, `Deal ${state.dealNo}: ${per} cards each. ${nameOf(state, state.dealer)} dealt.`);
 }
 
@@ -370,12 +374,18 @@ export function legalMoves(state, seat) {
   if (state.phase !== 'playing' || state.turn !== seat) return [];
   const hand = state.hands[seat] || [];
   const moves = [];
+  if (state.pendingBurn === seat) {
+    // a 10 was played on this player: they must burn a card of their choice before their normal turn
+    for (const card of hand) moves.push({ kind: 'burn', forced: true, cardId: card.id, rank: card.rank, picks: [{ type: 'option', value: 'burn', label: 'Burn this card' }] });
+    moves.forEach((m, i) => (m.id = i));
+    return moves;
+  }
   const ctrl = controlledSeat(state, seat);
   for (const card of hand) {
     const ranks = card.rank === 'JOKER' ? RANKS : [card.rank];
     for (const rank of ranks) {
       const prefix = card.rank === 'JOKER' ? [{ type: 'option', value: `as:${rank}`, label: `Play as ${rank}` }] : [];
-      for (const mv of movesForRank(state, seat, ctrl, rank)) {
+      for (const mv of movesForRank(state, seat, ctrl, rank, card)) {
         moves.push({ ...mv, cardId: card.id, rank, picks: [...prefix, ...mv.picks] });
       }
     }
@@ -406,9 +416,18 @@ function stepMoves(state, ctrl, steps, kind = 'step', extra = {}) {
   return out;
 }
 
-function movesForRank(state, seat, ctrl, rank) {
+export function nextSeat(state, seat) {
+  return (seat + 1) % state.settings.players;
+}
+
+function isRed(card) { return card.suit === 'H' || card.suit === 'D'; }
+
+function movesForRank(state, seat, ctrl, rank, card = { suit: null, rank }) {
   const s = state.settings;
   const out = [];
+  const joker = card.rank === 'JOKER';
+  const nxt = nextSeat(state, seat);
+  const nextHand = state.hands[nxt] || [];
   const exits = () => {
     const res = [];
     for (const m of myMarbles(state, ctrl)) {
@@ -435,8 +454,19 @@ function movesForRank(state, seat, ctrl, rank) {
         }
       }
       break;
-    case 'Q': out.push(...stepMoves(state, ctrl, 12)); break;
-    case '10': out.push(...stepMoves(state, ctrl, 10)); break;
+    case 'Q': {
+      for (const m of stepMoves(state, ctrl, 12)) out.push({ ...m, picks: s.complexCards ? [m.picks[0]] : m.picks });
+      if (s.complexCards && (joker || isRed(card)) && nextHand.length) {
+        // red Queen: pick one of the next player's cards (face down) and burn it
+        nextHand.forEach((c, i) => out.push({ kind: 'queenBurn', target: nxt, index: i, picks: [{ type: 'option', value: 'burn', label: `Burn a card of ${nameOf(state, nxt)}` }, { type: 'option', value: `card:${i}`, label: `Card ${i + 1}` }] }));
+      }
+      break;
+    }
+    case '10': {
+      for (const m of stepMoves(state, ctrl, 10)) out.push({ ...m, picks: s.complexCards ? [m.picks[0]] : m.picks });
+      if (s.complexCards && nextHand.length) out.push({ kind: 'tenBurn', target: nxt, picks: [{ type: 'option', value: 'burn', label: `${nameOf(state, nxt)} must burn a card` }] });
+      break;
+    }
     case '9': out.push(...stepMoves(state, ctrl, 9)); break;
     case '8': out.push(...stepMoves(state, ctrl, 8)); break;
     case '6': out.push(...stepMoves(state, ctrl, 6)); break;
@@ -485,6 +515,8 @@ function movesForRank(state, seat, ctrl, rank) {
     }
     case 'J': {
       const L = trackLength(s);
+      if (s.complexCards && !joker && isRed(card)) { out.push(...stepMoves(state, ctrl, 11)); break; } // red Jack only moves 11
+      if (joker) out.push(...stepMoves(state, ctrl, 11));
       for (const a of myMarbles(state, ctrl)) {
         if (a.zone !== 'track' || isProtected(a)) continue;
         for (const b of state.marbles) {
@@ -524,7 +556,21 @@ export function applyMove(state, seat, moveId) {
 
   switch (mv.kind) {
     case 'burn':
-      log(state, `${who} burns ${lbl} (no legal move)`, { seat });
+      if (mv.forced) { state.pendingBurn = null; log(state, `${who} burns ${lbl} (forced by a 10)`, { seat }); }
+      else log(state, `${who} burns ${lbl} (no legal move)`, { seat });
+      break;
+    case 'queenBurn': {
+      const th = state.hands[mv.target];
+      if (!th || mv.index >= th.length) throw new Error('Illegal burn');
+      const [victim] = th.splice(mv.index, 1);
+      state.discard.push(victim);
+      log(state, `${who} plays ${lbl}: burns ${cardLabel(victim)} from ${nameOf(state, mv.target)}'s hand`, { seat });
+      summary.burned = victim;
+      break;
+    }
+    case 'tenBurn':
+      state.pendingBurn = mv.target;
+      log(state, `${who} plays ${lbl}: ${nameOf(state, mv.target)} must burn a card`, { seat });
       break;
     case 'exit': {
       const m = state.marbles.find((x) => x.id === mv.marbleId);
@@ -587,10 +633,18 @@ export function applyMove(state, seat, moveId) {
   }
 
   // next turn / next deal
-  const allEmpty = Object.values(state.hands).every((h) => h.length === 0);
-  if (allEmpty) dealRound(state);
-  else state.turn = (state.turn + 1) % n;
+  if (mv.kind === 'burn' && mv.forced && state.hands[seat].length > 0) return state; // forced burn done: same player now plays
+  advanceTurn(state);
   return state;
+}
+
+function advanceTurn(state) {
+  const n = state.settings.players;
+  if (Object.values(state.hands).every((h) => h.length === 0)) { dealRound(state); return; }
+  let next = (state.turn + 1) % n;
+  while ((state.hands[next] || []).length === 0) next = (next + 1) % n; // players with no cards left are skipped
+  if (state.pendingBurn != null && state.pendingBurn !== next) state.pendingBurn = null; // burn only binds the very next player
+  state.turn = next;
 }
 
 // ---------- views ----------
@@ -629,6 +683,7 @@ export function chooseBotMove(state, seat) {
   const score = (mv) => {
     let v = randomInt(0, 10) / 10;
     if (mv.kind === 'burn') return -100 + v;
+    if (mv.kind === 'queenBurn' || mv.kind === 'tenBurn') return (teamOf(mv.target, s.players) === teamOf(seat, s.players) ? -30 : 6) + v;
     const kills = (mv.kills || []).filter((k) => {
       const m = state.marbles.find((x) => x.id === k);
       return teamOf(m.owner, s.players) !== teamOf(seat, s.players);

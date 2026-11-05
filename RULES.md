@@ -24,9 +24,10 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 |---|---|
 | **A** | Take a marble from home to your base, **or** move a marble 1, **or** 11 steps. |
 | **K** | Take a marble from home to your base, **or** (option *King 13 kills*, default on) move 13 steps killing every marble you pass or land on. |
-| **Q** | Move 12. |
-| **J** | Swap one of your marbles on the track with any other player's marble on the track (partner included). Marbles standing on their own base, in a safe zone or at home cannot be swapped. |
-| **10, 9, 8, 6, 3, 2** | Move that many steps. |
+| **Q** | Move 12. A **red** Queen (hearts, diamonds) may instead pick one of the next player's cards face down and burn it (option *complex cards*, default on). |
+| **J** | **Black** Jack (spades, clubs): swap one of your marbles on the track with any other player's marble on the track (partner included). Marbles standing on their own base, in a safe zone or at home cannot be swapped. **Red** Jack: move 11. (With *complex cards* off, every Jack swaps.) |
+| **10** | Move 10, **or** make the next player burn a card of their choice before they take their turn (option *complex cards*). |
+| **9, 8, 6, 3, 2** | Move that many steps. |
 | **7** | Move 7, or split the 7 between two of your marbles in any way (1+6, 2+5, 3+4 and so on). Each part must be legal on its own, in order. |
 | **5** | Move any marble on the track 5 steps: yours, your partner's or an opponent's (option *5 moves any marble*, default on). A marble moved by someone else cannot be pushed into its safe zone. |
 | **4** | Move 4 steps **backwards**. |
@@ -41,7 +42,7 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 
 ## Safe zone
 
-- A marble enters its safe zone after going round the track, from the cell just before its own base. The card must fit: you cannot overshoot the last safe cell.
+- The safe zone branches off the hole just **before** your base, so the base is never on the way in. A marble enters its safe zone after going round the track. The card must fit: you cannot overshoot the last safe cell.
 - Inside the safe zone marbles cannot jump over each other and cannot move backwards.
 - The classic trick works: a marble that moves 4 **backwards** from its base is now "at the end of its lap" and can enter the safe zone with a later card.
 
@@ -55,4 +56,5 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 
 - A King's 13-step move kills every unprotected marble it passes, yours and your partner's included.
 - A 5 played on another player's marble can kill, but cannot push that marble into its safe zone.
-- There is no "10 makes the next player discard" or "black Queen" rule (those come from the Jawaker *complex* variant). Open an issue if your table wants them; the engine is built so that a card's effect is one `case` in `movesForRank`.
+- A player who was made to burn by a 10 burns first and then plays normally in the same turn. A player whose hand runs out early is skipped until the next deal.
+- Jokers played as a Jack may swap or move 11; played as a Queen they may move 12 or burn.

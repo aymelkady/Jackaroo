@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Jackaroo</title>
   <meta name="description" content="Jackaroo board game: play live with friends in teams of two (4, 6 or 8 players)." />
   <meta name="theme-color" content="#1b2a1f" />
@@ -54,6 +54,7 @@
           <label class="chk"><input type="checkbox" id="optKing" checked /> King may move 13 and kill everything on the way</label>
           <label class="chk"><input type="checkbox" id="optFive" checked /> 5 may move any marble on the track (even opponents)</label>
           <label class="chk"><input type="checkbox" id="optJumpOwn" /> Marbles may jump over your own marbles (most tables: no)</label>
+          <label class="chk"><input type="checkbox" id="optComplex" checked /> Black Jack swaps, red Jack moves 11; red Queen and 10 can make the next player burn</label>
           <label class="chk"><input type="checkbox" id="optJokers" /> Add jokers (a joker plays as any card)</label>
           <button id="btnCreate" class="primary">Create game</button>
         </div>
@@ -133,9 +134,10 @@
       <table>
         <tr><th>A</th><td>Take a marble out to your base, or move 1 or 11.</td></tr>
         <tr><th>K</th><td>Take a marble out, or move 13 killing every marble you pass (option).</td></tr>
-        <tr><th>Q</th><td>Move 12.</td></tr>
-        <tr><th>J</th><td>Swap one of your marbles with any other player's marble on the track.</td></tr>
-        <tr><th>10 9 8 6 3 2</th><td>Move that many steps.</td></tr>
+        <tr><th>Q</th><td>Move 12. A <b>red</b> Queen may instead pick one of the next player's cards (face down) and burn it.</td></tr>
+        <tr><th>J</th><td><b>Black</b> Jack: swap one of your marbles with any other player's marble on the track. <b>Red</b> Jack: move 11.</td></tr>
+        <tr><th>10</th><td>Move 10, or make the next player burn a card of their choice before they play.</td></tr>
+        <tr><th>9 8 6 3 2</th><td>Move that many steps.</td></tr>
         <tr><th>7</th><td>Move 7, or split the 7 between two of your marbles.</td></tr>
         <tr><th>5</th><td>Move any marble on the track 5 steps, yours or anyone's (option).</td></tr>
         <tr><th>4</th><td>Move 4 steps backwards.</td></tr>
@@ -145,7 +147,7 @@
         <li>Landing on a marble sends it home. You cannot land on your own marble, and you cannot jump over your own marbles (option).</li>
         <li>A marble on its own base is protected: nobody can pass it, kill it or swap it, not even a King.</li>
         <li>Taking a marble out kills whatever is sitting on your base.</li>
-        <li>You enter your safe zone after a full lap. Backing up 4 from your base and then moving forward enters it early. No jumping over marbles inside the safe zone; the card must fit exactly.</li>
+        <li>The safe zone branches off the hole just before your base, so your base is never in the way. You enter your safe zone after a full lap. Backing up 4 from your base and then moving forward enters it early. No jumping over marbles inside the safe zone; the card must fit exactly.</li>
         <li>When all your marbles are safe you keep playing cards, moving your partner's marbles.</li>
         <li>The holes are numbered 1–18 from each base so you can count a move. When you pick a card, the holes you can reach light up.</li>
         <li>Deal: 5 cards each from a fresh deck, then 4 each. A second deck is used for 6 and 8 players. The shuffled order is committed with a SHA-256 hash before the first card is dealt and revealed when the deck is used up.</li>

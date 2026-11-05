@@ -10,7 +10,11 @@ function game(players = 4, extra = {}) {
 }
 
 function setHand(st, seat, ranks) {
-  st.hands[seat] = ranks.map((r, i) => ({ id: `t${seat}_${i}`, rank: r, suit: r === 'JOKER' ? null : 'S' }));
+  // 'QH' style entries set the suit; bare ranks are spades (black)
+  st.hands[seat] = ranks.map((r, i) => {
+    const m = r.match(/^(A|K|Q|J|10|[2-9])([SHDC])$/);
+    return m ? { id: `t${seat}_${i}`, rank: m[1], suit: m[2] } : { id: `t${seat}_${i}`, rank: r, suit: r === 'JOKER' ? null : 'S' };
+  });
 }
 function marble(st, seat, k = 0) { return st.marbles.find((m) => m.id === `m${seat}_${k}`); }
 function put(st, seat, k, zone, pos) { const m = marble(st, seat, k); m.zone = zone; m.pos = pos; return m; }
@@ -85,7 +89,7 @@ test('a marble on its own base cannot be passed, even by a King', () => {
   setHand(st, 0, ['K', '10', '8']);
   const lm = moves(st, 0);
   assert.ok(!lm.some((m) => m.kind === 'king'));                         // 10+13 passes abs 19
-  assert.ok(!lm.some((m) => m.rank === '10'));                           // 10+10 passes abs 19
+  assert.ok(!lm.some((m) => m.kind === 'step' && m.rank === '10'));      // 10+10 passes abs 19
   assert.ok(lm.some((m) => m.rank === '8' && m.to.pos === 18));          // 10+8 = 18, stops before
 });
 
@@ -277,4 +281,72 @@ test('6 and 8 player games run to completion with bots (no illegal states)', () 
     }
     assert.equal(st.phase, 'finished', `${n}p game did not finish in ${turns} turns`);
   }
+});
+
+test('complex cards: black Jack swaps, red Jack moves 11', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 3);
+  put(st, 1, 1, 'track', 30);
+  setHand(st, 0, ['JS', 'JH']);
+  const lm = moves(st, 0);
+  const black = lm.filter((m) => m.cardId === 't0_0'), red = lm.filter((m) => m.cardId === 't0_1');
+  assert.ok(black.every((m) => m.kind === 'jack') && black.length === 1);
+  assert.ok(red.every((m) => m.kind === 'step' && m.steps === 11) && red.length === 1);
+  // with complex cards off, any Jack swaps
+  const st2 = game(4, { complexCards: false });
+  put(st2, 0, 0, 'track', 3); put(st2, 1, 1, 'track', 30);
+  setHand(st2, 0, ['JH']);
+  assert.ok(moves(st2, 0).every((m) => m.kind === 'jack'));
+});
+
+test('red Queen may burn a card of your choice from the next player; black Queen only moves 12', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 3);
+  setHand(st, 0, ['QH', 'QS']);
+  setHand(st, 1, ['2', '3', '4']);
+  const lm = moves(st, 0);
+  const burns = lm.filter((m) => m.kind === 'queenBurn');
+  assert.equal(burns.length, 3);
+  assert.ok(burns.every((m) => m.cardId === 't0_0' && m.target === 1));
+  assert.ok(lm.some((m) => m.cardId === 't0_1' && m.kind === 'step' && m.steps === 12));
+  assert.ok(!lm.some((m) => m.cardId === 't0_1' && m.kind === 'queenBurn'));
+  const pick = burns.find((m) => m.index === 1);
+  E.applyMove(st, 0, pick.id);
+  assert.deepEqual(st.hands[1].map((c) => c.rank), ['2', '4']);
+  assert.equal(st.turn, 1);
+  assert.equal(st.pendingBurn, null);
+});
+
+test('10 may force the next player to burn a card of THEIR choice before they play', () => {
+  const st = game(4);
+  put(st, 0, 0, 'track', 3);
+  setHand(st, 0, ['10']);
+  setHand(st, 1, ['A', '9']);
+  put(st, 1, 0, 'track', 5);
+  const lm = moves(st, 0);
+  const ten = lm.find((m) => m.kind === 'tenBurn');
+  assert.ok(ten && ten.target === 1);
+  assert.ok(lm.some((m) => m.kind === 'step' && m.steps === 10));
+  E.applyMove(st, 0, ten.id);
+  assert.equal(st.turn, 1);
+  assert.equal(st.pendingBurn, 1);
+  const forced = E.legalMoves(st, 1);
+  assert.ok(forced.length === 2 && forced.every((m) => m.kind === 'burn' && m.forced));
+  E.applyMove(st, 1, forced.find((m) => m.rank === 'A').id); // player 1 chooses to burn the Ace
+  assert.equal(st.turn, 1, 'after the forced burn it is still their turn');
+  assert.equal(st.pendingBurn, null);
+  assert.ok(E.legalMoves(st, 1).some((m) => m.kind === 'step' && m.steps === 9));
+  E.applyMove(st, 1, E.legalMoves(st, 1)[0].id);
+  assert.equal(st.turn, 2);
+});
+
+test('players with no cards left are skipped until the next deal', () => {
+  const st = game(4);
+  setHand(st, 0, ['2']); setHand(st, 1, []); setHand(st, 2, ['3']); setHand(st, 3, []);
+  put(st, 0, 0, 'track', 3); put(st, 2, 0, 'track', 3);
+  st.turn = 0;
+  E.applyMove(st, 0, E.legalMoves(st, 0)[0].id);
+  assert.equal(st.turn, 2);
+  E.applyMove(st, 2, E.legalMoves(st, 2)[0].id);
+  assert.equal(st.dealNo, 2, 'all hands empty -> new deal');
 });

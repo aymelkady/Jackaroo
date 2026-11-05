@@ -5,8 +5,8 @@
   const TEAM_NAMES = ['A', 'B', 'C', 'D'];
   const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣' };
   const HINT = {
-    A: 'Exit a marble, or move 1 or 11', K: 'Exit a marble, or move 13 and kill on the way', Q: 'Move 12', J: 'Swap with another player\'s marble',
-    10: 'Move 10', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card',
+    A: 'Exit a marble, or move 1 or 11', K: 'Exit a marble, or move 13 and kill on the way', Q: 'Move 12; red Queen may burn a card from the next player', J: 'Black: swap with another player\'s marble. Red: move 11',
+    10: 'Move 10, or make the next player burn a card', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card',
   };
 
   let code = null, token = null, playerId = null;
@@ -138,7 +138,7 @@
     const name = $('name').value.trim();
     if (!name) return showError('Enter your name first');
     store.name = name;
-    send({ type: 'create', name, settings: { players: Number($('players').value), randomTeams: $('optRandomTeams').checked, kingKills: $('optKing').checked, fiveMovesAny: $('optFive').checked, jumpOwn: $('optJumpOwn').checked, jokers: $('optJokers').checked } });
+    send({ type: 'create', name, settings: { players: Number($('players').value), randomTeams: $('optRandomTeams').checked, kingKills: $('optKing').checked, fiveMovesAny: $('optFive').checked, jumpOwn: $('optJumpOwn').checked, complexCards: $('optComplex').checked, jokers: $('optJokers').checked } });
   };
   $('btnJoin').onclick = () => joinFromForm(false);
   $('btnWatch').onclick = () => joinFromForm(true);
@@ -196,11 +196,12 @@
         <label class="chk"><input type="checkbox" id="lsKing" ${s.kingKills ? 'checked' : ''}/> King 13 kills</label>
         <label class="chk"><input type="checkbox" id="lsFive" ${s.fiveMovesAny ? 'checked' : ''}/> 5 moves any marble</label>
         <label class="chk"><input type="checkbox" id="lsJumpOwn" ${s.jumpOwn ? 'checked' : ''}/> may jump own marbles</label>
+        <label class="chk"><input type="checkbox" id="lsComplex" ${s.complexCards ? 'checked' : ''}/> black J swaps, red Q and 10 burn</label>
         <label class="chk"><input type="checkbox" id="lsJokers" ${s.jokers ? 'checked' : ''}/> jokers</label>`;
-      const push = () => send({ type: 'settings', settings: { players: Number($('lsPlayers').value), randomTeams: $('lsRandom').checked, kingKills: $('lsKing').checked, fiveMovesAny: $('lsFive').checked, jumpOwn: $('lsJumpOwn').checked, jokers: $('lsJokers').checked } });
-      for (const id of ['lsPlayers', 'lsRandom', 'lsKing', 'lsFive', 'lsJumpOwn', 'lsJokers']) $(id).onchange = push;
+      const push = () => send({ type: 'settings', settings: { players: Number($('lsPlayers').value), randomTeams: $('lsRandom').checked, kingKills: $('lsKing').checked, fiveMovesAny: $('lsFive').checked, jumpOwn: $('lsJumpOwn').checked, complexCards: $('lsComplex').checked, jokers: $('lsJokers').checked } });
+      for (const id of ['lsPlayers', 'lsRandom', 'lsKing', 'lsFive', 'lsJumpOwn', 'lsComplex', 'lsJokers']) $(id).onchange = push;
     } else {
-      st.innerHTML = `<span class="muted">${s.players} players · ${s.randomTeams ? 'random teams' : 'chosen seats'} · King 13 ${s.kingKills ? 'on' : 'off'} · 5 any ${s.fiveMovesAny ? 'on' : 'off'} · jump own ${s.jumpOwn ? 'on' : 'off'} · jokers ${s.jokers ? 'on' : 'off'}</span>`;
+      st.innerHTML = `<span class="muted">${s.players} players · ${s.randomTeams ? 'random teams' : 'chosen seats'} · King 13 ${s.kingKills ? 'on' : 'off'} · 5 any ${s.fiveMovesAny ? 'on' : 'off'} · jump own ${s.jumpOwn ? 'on' : 'off'} · complex cards ${s.complexCards ? 'on' : 'off'} · jokers ${s.jokers ? 'on' : 'off'}</span>`;
     }
     const full = state.players.length === n;
     $('btnStart').classList.toggle('hidden', !isHost);
@@ -308,11 +309,16 @@
     for (let i = 0; i < L; i++) { const f = frameAt(dp, sAt(i)); track.push({ x: f.x, y: f.y }); frames.push(f); }
     const safe = [], home = [], label = [];
     for (let seat = 0; seat < n; seat++) {
-      const f = frames[seat * cpp];
-      const at = (inward, back) => ({ x: f.x + f.nx * inward - f.tx * back, y: f.y + f.ny * inward - f.ty * back });
-      safe.push(Array.from({ length: s.safeCells }, (_, k) => at(gap * (k + 1), 0)));
-      home.push([at(gap * 1.15, gap * 1.7), at(gap * 1.15, gap * 2.7), at(gap * 2.15, gap * 1.7), at(gap * 2.15, gap * 2.7)]);
-      label.push({ ...at(gap * 3.35, gap * 2.2), horizontal: Math.abs(f.ty) > 0.7 });
+      // the safe zone branches off the hole just BEFORE the base (where a marble enters after its lap),
+      // so the base itself is never on the way into the safe zone
+      const fe = frames[(seat * cpp - 1 + L) % L];
+      const fb = frames[seat * cpp];
+      const atE = (inward, ahead) => ({ x: fe.x + fe.nx * inward + fe.tx * ahead, y: fe.y + fe.ny * inward + fe.ty * ahead });
+      const atB = (inward, ahead) => ({ x: fb.x + fb.nx * inward + fb.tx * ahead, y: fb.y + fb.ny * inward + fb.ty * ahead });
+      safe.push(Array.from({ length: s.safeCells }, (_, k) => atE(gap * (k + 1), 0)));
+      // home tray: inside the board, just ahead of the base
+      home.push([atB(gap * 1.15, gap * 1.4), atB(gap * 1.15, gap * 2.4), atB(gap * 2.15, gap * 1.4), atB(gap * 2.15, gap * 2.4)]);
+      label.push({ ...atB(gap * 3.35, gap * 1.9), horizontal: Math.abs(fb.ty) > 0.7 });
     }
     return { L, cx: 500, cy: 500, rc, gap, half, shape, track, frames, safe, home, label, cpp, n };
   }
@@ -480,11 +486,14 @@
     $('designDialog').showModal();
   }
   $('btnDesign').onclick = openDesignPicker;
-  $('btnZoom').onclick = () => {
+  function setZoom(on) {
     const w = document.querySelector('.board-wrap');
-    const on = w.classList.toggle('zoomed');
+    w.classList.toggle('zoomed', on);
+    localStorage.setItem('jk.zoom', on ? '1' : '0');
     if (on) requestAnimationFrame(() => { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; });
-  };
+  }
+  $('btnZoom').onclick = () => setZoom(!document.querySelector('.board-wrap').classList.contains('zoomed'));
+  if (innerWidth <= 900 && localStorage.getItem('jk.zoom') !== '0') setZoom(true); // phones start zoomed on your own side
 
   // ---------- move selection ----------
   function candidateMoves() {
@@ -767,7 +776,10 @@
         };
         hand.appendChild(el);
       });
-      if (onlyBurn && myTurn && !sel.cardId) { pr.innerHTML = '<b>No legal move.</b> Pick a card to burn.'; promptSet = true; }
+      if (onlyBurn && myTurn && !sel.cardId) {
+        pr.innerHTML = state.pendingBurn === mySeat ? '<b>A 10 was played on you.</b> Pick a card to burn, then you play.' : '<b>No legal move.</b> Pick a card to burn.';
+        promptSet = true;
+      }
     }
 
     // prompt
@@ -844,7 +856,13 @@
     if (!state) return;
     $('topInfo').textContent = `Game ${state.code} · ${state.settings.players} players`;
     if (state.phase === 'lobby') { showScreen('Lobby'); renderLobby(); }
-    else { showScreen('Game'); if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; } renderGame(); }
+    else {
+      const wasHidden = $('screenGame').classList.contains('hidden');
+      showScreen('Game');
+      if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; }
+      renderGame();
+      if (wasHidden) requestAnimationFrame(() => { const w = document.querySelector('.board-wrap'); if (w.classList.contains('zoomed')) { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; } });
+    }
   }
 
   function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

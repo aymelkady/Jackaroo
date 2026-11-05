@@ -98,7 +98,7 @@ a { color: var(--accent); }
   .pcard.sel { transform: translateY(-8px) scale(1.04); }
   .board-wrap { padding: 0; }
   .board-wrap.zoomed { overflow: auto; max-height: 78vh; border-radius: 12px; }
-  .board-wrap.zoomed #board { width: 175%; max-height: none; }
+  .board-wrap.zoomed #board { width: 190%; max-height: none; }
 }
 #board { width: 100%; height: auto; display: block; max-height: 90vh; filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)); }
 
