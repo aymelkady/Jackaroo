@@ -1,4 +1,4 @@
-// Board geometry for the real Saudi / JJ boards (designs 'saudi' and 'jj').
+// Board geometry for the real Saudi / JJ boards, used by every board design (they differ only in frame, wood and inlay).
 //
 // The track is ONE continuous loop of N*19 holes. Between two stars the path is:
 //   star_s -> 1..5 up seat s's LEFT column (toward the centre)

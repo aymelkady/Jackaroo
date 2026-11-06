@@ -26,6 +26,9 @@ for (const N of [4, 6, 8]) {
       assert.ok(dist(h1, star) <= 1.5 * sp, 'hole 1 starts beside the star');
       assert.ok(dist(g.safe[s][0], h18) <= 1.6 * sp, 'safe column entered from 18');
       assert.ok(dist(g.safe[s][0], star) > 1.6 * sp, 'the star is not the safe entrance');
+      const h17 = g.track[(s * 19 - 2 + L) % L];
+      assert.ok(Math.abs(dist(g.safe[s][0], h17) - sp) < 1e-6, 'safe slot 1 is exactly sp from hole 17');
+      assert.ok(dist(g.safe[s][0], h18) > sp + 1e-6, 'safe slot 1 is farther from hole 18 than from 17');
       for (let k = 6; k <= 9; k++) assert.equal(g.track[s * 19 + k].where, 'ring');
       assert.ok(Math.hypot(g.label[s].x - 500, g.label[s].y - 500) < R, 'chip inside the board');
     }
