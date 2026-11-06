@@ -8,7 +8,7 @@ import { armLayout } from './shared/layout.js';
   const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣' };
   const HINT = {
     A: 'Exit a marble, or move 1 or 11', K: 'Exit a marble, or move 13 and kill on the way', Q: 'Move 12; red Queen may burn a card from the next player', J: 'Swap one of your marbles with another player\'s marble', J11: 'Move 11',
-    10: 'Move 10, or make the next player burn a card', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5 (not one standing on its own base)', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card (as a Jack: swap or move 11)',
+    10: 'Move 10, or make the next player burn a card and lose their turn', 9: 'Move 9', 8: 'Move 8', 7: 'Move 7, or split between two marbles', 6: 'Move 6', 5: 'Move any marble 5 (not one standing on its own base)', 4: 'Move 4 backwards', 3: 'Move 3', 2: 'Move 2', JOKER: 'Play as any card (as a Jack: swap or move 11)',
   };
 
   let code = null, token = null, playerId = null;
@@ -665,12 +665,20 @@ import { armLayout } from './shared/layout.js';
   }
 
   function marbleById(id) { return state.marbles.find((m) => m.id === id); }
-  function destinationsOf(mv) {
+  // a 7's picks are [marble A, steps, marble B?], after a Joker's 'as:7' prefix if any; this is the depth within them
+  function sevenDepth(mv, depth) { return depth - (mv.picks.length - (mv.parts.length === 2 ? 3 : 2)); }
+  // holes to light for a move at the current pick depth. A 7 is picked step by step:
+  // nothing while choosing the first marble, then where the first part stops, then where the second part stops.
+  function destinationsOf(mv, depth) {
     const out = [];
     const kills = new Set(mv.kills || []);
-    const add = (owner, to, viaMarble) => { if (to) out.push({ owner, zone: to.zone, pos: to.pos, kill: kills.size > 0 && viaMarble }); };
+    const add = (owner, to, viaMarble, steps) => { if (to) out.push({ owner, zone: to.zone, pos: to.pos, kill: kills.size > 0 && viaMarble, steps }); };
     if (mv.kind === 'jack') { add(marbleById(mv.marbleId).owner, { zone: 'track', pos: mv.toA }); add(marbleById(mv.targetId).owner, { zone: 'track', pos: mv.toB }); }
-    else if (mv.kind === 'seven') for (const p of mv.parts) add(marbleById(p.marbleId).owner, p.to, true);
+    else if (mv.kind === 'seven') {
+      const d = sevenDepth(mv, depth);
+      const part = d === 1 ? mv.parts[0] : d === 2 ? mv.parts[1] : null;
+      if (part) add(marbleById(part.marbleId).owner, part.to, true, part.steps);
+    }
     else if (mv.marbleId && mv.to) add(marbleById(mv.marbleId).owner, mv.to, true);
     return out;
   }
@@ -685,11 +693,12 @@ import { armLayout } from './shared/layout.js';
     const seen = new Set();
     let h = '';
     for (const mv of cands) {
-      for (const d of destinationsOf(mv)) {
+      for (const d of destinationsOf(mv, depth)) {
         const k = `${d.owner}-${d.zone}-${d.pos}`;
         if (seen.has(k)) continue; seen.add(k);
         const p = cellPos(d.owner, d.zone, d.pos);
-        h += `<circle class="target${d.kill ? ' kill' : ''}" data-owner="${d.owner}" data-zone="${d.zone}" data-pos="${d.pos}" cx="${p.x}" cy="${p.y}" r="${g.rc * 1.45}" filter="url(#glow)"/>`;
+        const circle = `<circle class="target${d.kill ? ' kill' : ''}" data-owner="${d.owner}" data-zone="${d.zone}" data-pos="${d.pos}"${d.steps ? ` data-steps="${d.steps}"` : ''} cx="${p.x}" cy="${p.y}" r="${g.rc * 1.45}" filter="url(#glow)"/>`;
+        h += d.steps ? `<g>${circle}<text class="target-steps" x="${p.x}" y="${p.y}" dy="0.35em">${d.steps}</text></g>` : circle;
       }
     }
     grp.innerHTML = h;
@@ -708,9 +717,16 @@ import { armLayout } from './shared/layout.js';
   }
   function tapTarget(owner, zone, pos) {
     const depth = sel.picks.length;
-    const cands = candidateMoves().filter((mv) => destinationsOf(mv).some((d) => d.owner === owner && d.zone === zone && d.pos === pos));
+    // track holes are compared by their shared index: a destination is numbered from the MOVING marble's base,
+    // a marble sitting there (tapped for a kill) from its own owner's base
+    const g = geometry();
+    const same = (d) => d.zone === zone && (zone === 'track'
+      ? (d.owner * g.cpp + d.pos) % g.L === (owner * g.cpp + pos) % g.L
+      : d.owner === owner && d.pos === pos);
+    const cands = candidateMoves().filter((mv) => destinationsOf(mv, depth).some(same));
     if (!cands.length) return;
-    if (cands.length === 1) { sel.picks = cands[0].picks.map((p) => p.value); if (!tryCommit()) renderGame(); return; }
+    // a 7 advances one pick per tap (marble A's hole picks the steps, marble B's hole picks B), so the split stays visible
+    if (cands.length === 1 && cands[0].kind !== 'seven') { sel.picks = cands[0].picks.map((p) => p.value); if (!tryCommit()) renderGame(); return; }
     const next = cands[0].picks[depth];
     if (next && cands.every((mv) => mv.picks[depth] && mv.picks[depth].value === next.value)) pick(next.value);
   }
@@ -838,7 +854,13 @@ import { armLayout } from './shared/layout.js';
           <g filter="url(#mshadow)"><circle class="body" r="${r}" fill="url(#mg${m.owner})"/></g>
           <ellipse rx="${r * .32}" ry="${r * .2}" cx="${-r * .35}" cy="${-r * .42}" fill="rgba(255,255,255,.85)" transform="rotate(-30 ${-r * .35} ${-r * .42})"/>
           <circle r="${r * .1}" cx="${r * .3}" cy="${r * .35}" fill="rgba(255,255,255,.35)"/>`;
-        el.onclick = () => { if (el.classList.contains('pick')) pick(m.id); };
+        el.onclick = () => {
+          const cur = marbleById(m.id);
+          if (!cur) return;
+          if (el.classList.contains('pick')) pick(cur.id);
+          // not pickable: the marble covers its hole, so treat the tap as a tap on that hole (e.g. a lit kill destination)
+          else if (cur.zone !== 'home') tapTarget(cur.owner, cur.zone, cur.pos);
+        };
         el.onmouseenter = () => { if (el.classList.contains('pick')) { hoverMarble = m.id; renderTargets(); } };
         el.onmouseleave = () => { if (hoverMarble === m.id) { hoverMarble = null; renderTargets(); } };
         grp.appendChild(el);
@@ -1048,7 +1070,7 @@ import { armLayout } from './shared/layout.js';
       const cards = [...hand.children];
       cards.forEach((el, i) => { const k = i - (cards.length - 1) / 2; el.style.transform = `rotate(${(k * 4).toFixed(1)}deg) translateY(${(Math.abs(k) * 4).toFixed(1)}px)`; });
       if (onlyBurn && myTurn && !sel.cardId) {
-        pr.innerHTML = state.pendingBurn === mySeat ? '<b>A 10 was played on you.</b> Pick a card to burn, then you play.' : '<b>No legal move.</b> Pick a card to burn.';
+        pr.innerHTML = state.pendingBurn === mySeat ? '<b>A 10 was played on you.</b> Pick a card to burn. Your turn is then over.' : '<b>No legal move.</b> Pick a card to burn.';
         promptSet = true;
       }
     }
@@ -1060,8 +1082,15 @@ import { armLayout } from './shared/layout.js';
       const optPicks = picks.filter((p) => p.type === 'option');
       const card = you.hand.find((c) => c.id === sel.cardId);
       let html = `<b>${card ? (card.rank === 'JOKER' ? 'Joker' : card.rank + SUIT[card.suit]) : ''}</b>`;
-      if (marblePicks.length) html += ' · ' + (sel.picks.length === 0 ? 'tap a glowing marble or a lit hole' : 'now tap the second marble');
-      if (optPicks.length) html += `<div class="opts">${optPicks.map((p) => `<button class="secondary" data-v="${esc(p.value)}">${esc(p.label)}</button>`).join('')}</div>`;
+      const cands = candidateMoves().filter((m) => m.kind !== 'burn');
+      const sevenD = cands.length && cands.every((m) => m.kind === 'seven') ? sevenDepth(cands[0], sel.picks.length) : -1;
+      if (sevenD === 0) html = '<b>7</b> · tap the marble that moves first (you can split the 7 between two marbles)';
+      else if (sevenD === 1) html = '<b>7</b> · tap the hole where it stops; the rest of the 7 goes to another marble';
+      else if (sevenD === 2) html = `<b>7</b> · now tap the second marble (it moves ${cands[0].parts[1].steps})`;
+      else {
+        if (marblePicks.length) html += ' · ' + (sel.picks.length === 0 ? 'tap a glowing marble or a lit hole' : 'now tap the second marble');
+        if (optPicks.length) html += `<div class="opts">${optPicks.map((p) => `<button class="secondary" data-v="${esc(p.value)}">${esc(p.label)}</button>`).join('')}</div>`;
+      }
       html += ` <button class="link" id="btnCancel">cancel</button>`;
       pr.innerHTML = html;
       pr.querySelectorAll('button[data-v]').forEach((b) => (b.onclick = () => pick(b.dataset.v)));

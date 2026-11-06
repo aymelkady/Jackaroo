@@ -187,6 +187,7 @@ body.in-game .topbar { display: none; }
 @keyframes pulse { 0% { opacity: .95; r: 10; } 100% { opacity: 0; r: 24; } }
 .target { fill: rgba(255,211,105,.25); stroke: #ffd369; stroke-width: 2.2; pointer-events: all; cursor: pointer; animation: tpulse 1.2s ease-in-out infinite alternate; }
 .target.kill { fill: rgba(226,87,75,.35); stroke: #ff6b5e; }
+.target-steps { fill: #fff; font-weight: 700; font-size: 13px; text-anchor: middle; pointer-events: none; }
 @keyframes tpulse { from { stroke-opacity: .45; } to { stroke-opacity: 1; } }
 .lbl { fill: #fff; font-size: 19px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(20,10,0,.75); stroke-width: 4px; font-family: var(--font-ui); }
 .lbl.turn { fill: #ffe082; }

@@ -645,7 +645,6 @@ export function applyMove(state, seat, moveId) {
   }
 
   // next turn / next deal
-  if (mv.kind === 'burn' && mv.forced && state.hands[seat].length > 0) return state; // forced burn done: same player now plays
   advanceTurn(state);
   return state;
 }

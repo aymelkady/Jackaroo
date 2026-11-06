@@ -27,9 +27,9 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 | **K** | Take a marble from home to your base, **or** (option *King 13 kills*, default on) move 13 steps killing every marble you pass or land on. |
 | **Q** | Move 12. A **red** Queen (hearts, diamonds) may instead pick one of the next player's cards face down and burn it (option *complex cards*, default on). |
 | **J** | **Black** Jack (spades, clubs) is a **swap card**: swap one of your marbles on the track with any other player's marble on the track (partner included). Marbles standing on their own base, in a safe zone or at home cannot be swapped. **Red** Jack: move 11. (With *complex cards* off, every Jack swaps.) |
-| **10** | Move 10, **or** make the next player burn a card of their choice before they take their turn (option *complex cards*). |
+| **10** | Move 10, **or** make the next player burn a card of their choice and lose their turn (option *complex cards*). |
 | **9, 8, 6, 3, 2** | Move that many steps. |
-| **7** | Move 7, or split the 7 between two of your marbles in any way (1+6, 2+5, 3+4 and so on). Each part must be legal on its own, in order. |
+| **7** | Move 7, or split the 7 between two of your marbles in any way (1+6, 2+5, 3+4 and so on). Each part must be legal on its own, in order. Tap the marble, then the hole it stops on, then the second marble. |
 | **5** | Move any marble on the track 5 steps: yours, your partner's or an opponent's (option *5 moves any marble*, default on). A marble moved by someone else cannot be pushed into its safe zone, and another player's marble standing on its own base cannot be moved at all. |
 | **4** | Move 4 steps **backwards**. |
 | **Joker** | Plays as any card above (option, default off). |
@@ -58,5 +58,5 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 
 - A King's 13-step move kills every unprotected marble it passes, yours and your partner's included.
 - A 5 played on another player's marble can kill, but cannot push that marble into its safe zone.
-- A player who was made to burn by a 10 burns first and then plays normally in the same turn. A player whose hand runs out early is skipped until the next deal.
+- A player who was made to burn by a 10 burns the card of their choice and loses the turn; play passes to the next player. A player whose hand runs out early is skipped until the next deal.
 - Jokers played as a Jack may swap (like a swap card) or move 11; played as a Queen they may move 12 or burn.

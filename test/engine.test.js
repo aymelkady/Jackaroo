@@ -317,7 +317,7 @@ test('red Queen may burn a card of your choice from the next player; black Queen
   assert.equal(st.pendingBurn, null);
 });
 
-test('10 may force the next player to burn a card of THEIR choice before they play', () => {
+test('10 may force the next player to burn a card of THEIR choice; the victim then loses the turn', () => {
   const st = game(4);
   put(st, 0, 0, 'track', 3);
   setHand(st, 0, ['10']);
@@ -333,11 +333,28 @@ test('10 may force the next player to burn a card of THEIR choice before they pl
   const forced = E.legalMoves(st, 1);
   assert.ok(forced.length === 2 && forced.every((m) => m.kind === 'burn' && m.forced));
   E.applyMove(st, 1, forced.find((m) => m.rank === 'A').id); // player 1 chooses to burn the Ace
-  assert.equal(st.turn, 1, 'after the forced burn it is still their turn');
+  assert.equal(st.turn, 2, 'after the forced burn the victim\'s turn is over');
   assert.equal(st.pendingBurn, null);
-  assert.ok(E.legalMoves(st, 1).some((m) => m.kind === 'step' && m.steps === 9));
-  E.applyMove(st, 1, E.legalMoves(st, 1)[0].id);
-  assert.equal(st.turn, 2);
+  assert.deepEqual(st.hands[1].map((c) => c.rank), ['9']);
+});
+
+test('near home: last free safe cell is 0, so cards that overshoot it can only be burned', () => {
+  const st = game(4);
+  const L = E.trackLength(st.settings);
+  put(st, 0, 0, 'safe', 3);
+  put(st, 0, 1, 'safe', 2);
+  put(st, 0, 2, 'safe', 1);
+  put(st, 0, 3, 'track', L - 3);
+  setHand(st, 0, ['9', 'Q', '8']);
+  st.turn = 0; st.pendingBurn = null;
+  let lm = E.legalMoves(st, 0);
+  assert.ok(lm.length > 0);
+  assert.ok(lm.every((m) => m.kind === 'burn'), 'every card overshoots the last free safe cell');
+  setHand(st, 0, ['3']);
+  st.turn = 0; st.pendingBurn = null;
+  lm = E.legalMoves(st, 0);
+  assert.equal(lm.length, 1);
+  assert.deepEqual(lm[0].to, { zone: 'safe', pos: 0 });
 });
 
 test('players with no cards left are skipped until the next deal', () => {
