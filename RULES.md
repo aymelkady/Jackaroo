@@ -5,6 +5,7 @@ Jackaroo has no single official rulebook; every table has house rules. This app 
 ## Table
 
 - 4, 6 or 8 players. Teams of two; partners sit opposite each other (seat 1 with seat 3 at a 4-player table, seat 1 with seat 4 at a 6-player table, and so on).
+- Every player has their own marble colour (red, blue, green, yellow; orange, purple, teal and ivory at bigger tables). Partners sit opposite; the team letter is shown on each seat chip.
 - Each player has 4 marbles, a **home** (where marbles wait and return to when killed), a **base** (the star hole at the corner of the player's arm, where marbles come out) and a **safe zone** of 4 cells.
 - The track has 19 cells per player (76 for 4 players, 114 for 6, 152 for 8). Marbles move clockwise.
 - On the board each player owns an arm of 18 numbered holes plus the star (the base). A marble leaves its star into the next player's arm at hole 1, runs round every arm and comes home through its own arm: hole 18 sits right next to its own star, and the safe column branches off diagonally from hole 18.

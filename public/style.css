@@ -110,6 +110,7 @@ body.in-game .topbar { display: none; }
 .seat-chip { position: absolute; transform: translate(-50%, -50%); display: flex; align-items: center; gap: .35em; padding: .18em .55em .18em .2em; border-radius: 999px; background: rgba(10,17,13,.82); border: 1.5px solid rgba(227,185,91,.45); color: var(--ink); font-size: clamp(10px, 1.6vmin, 15px); font-weight: 700; white-space: nowrap; pointer-events: auto; box-shadow: 0 4px 10px rgba(0,0,0,.5); transition: box-shadow .3s, border-color .3s; }
 .seat-chip .av { width: 2em; height: 2em; border-radius: 50%; display: grid; place-items: center; font-size: .9em; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.7); box-shadow: inset -3px -4px 6px rgba(0,0,0,.5), inset 2px 2px 4px rgba(255,255,255,.4); flex: none; }
 .seat-chip .nm { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.seat-chip .team { font-size: 10px; font-weight: 800; padding: 0 5px; border-radius: 999px; border: 1px solid rgba(255,255,255,.35); opacity: .85; }
 .seat-chip .cnt { font-size: .85em; color: var(--gold); background: rgba(0,0,0,.35); border-radius: 999px; padding: 0 .45em; }
 .seat-chip.turn { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(227,185,91,.25), 0 0 22px rgba(227,185,91,.7); }
 .seat-chip.turn .av { animation: avpulse 1.3s ease-in-out infinite alternate; }
@@ -179,7 +180,7 @@ body.in-game .topbar { display: none; }
 .suit { font-family: var(--font-ui); }
 .num { fill: rgba(255,228,190,.55); font-size: 11px; font-weight: 700; text-anchor: middle; pointer-events: none; font-family: var(--font-ui); }
 .marble { transition: transform .5s cubic-bezier(.2,.8,.2,1); }
-.marble .body { stroke: rgba(0,0,0,.35); stroke-width: .8; }
+.marble .body { stroke: rgba(0,0,0,.55); stroke-width: 1; } /* dark outline keeps the ivory (8th seat) marble readable */
 .marble .hit { pointer-events: all; }
 .marble.pick { cursor: pointer; }
 .marble.pick .halo { animation: pulse 1.1s infinite; }

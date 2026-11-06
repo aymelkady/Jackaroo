@@ -3,7 +3,7 @@ import { armLayout } from './shared/layout.js';
 
 (() => {
   const $ = (id) => document.getElementById(id);
-  const TEAM_COLORS = [['#d8372a', '#ff8a7a'], ['#2a6fd8', '#8fbcff'], ['#2f9a4a', '#9be0a8'], ['#e6b43a', '#fff0a0']];
+  const SEAT_COLORS = ['#d8372a', '#2a6fd8', '#2f9a4a', '#e6b43a', '#f07a1a', '#8e44ad', '#1aa6a0', '#efe6d0']; // red, blue, green, yellow, orange, purple, teal, ivory
   const TEAM_NAMES = ['A', 'B', 'C', 'D'];
   const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣' };
   const HINT = {
@@ -191,10 +191,10 @@ import { armLayout } from './shared/layout.js';
       const team = seat % (n / 2);
       const div = document.createElement('div');
       div.className = 'seat' + (p && p.id === playerId ? ' me' : '');
-      div.style.borderColor = TEAM_COLORS[team][seat < n / 2 ? 0 : 1];
-      const col = TEAM_COLORS[team][seat < n / 2 ? 0 : 1];
+      const col = SEAT_COLORS[seat];
+      div.style.borderColor = col;
       div.innerHTML = `<div class="av" style="background:${col}">${p ? esc(initials(p.name)) : '·'}</div><div>
-        <div class="team" style="color:${TEAM_COLORS[team][0]}">Seat ${seat + 1} · Team ${TEAM_NAMES[team]}</div>
+        <div class="team" style="color:${col}">Seat ${seat + 1} · Team ${TEAM_NAMES[team]}</div>
         <div class="who">${p ? esc(p.name) : '<span class="muted">empty — tap to sit</span>'}</div>
         <div class="status">${p ? (p.isBot ? 'bot' : p.connected ? 'online' : 'offline') : ''}${p && p.id === state.hostId ? ' · host' : ''}</div></div>`;
       div.onclick = () => { if (!p || p.id !== playerId) send({ type: 'seat', seat }); };
@@ -229,7 +229,7 @@ import { armLayout } from './shared/layout.js';
   }
 
   // ---------- colors ----------
-  function seatColor(seat) { const n = state.settings.players; return TEAM_COLORS[seat % (n / 2)][seat < n / 2 ? 0 : 1]; }
+  function seatColor(seat) { return SEAT_COLORS[seat]; }
   function nameOf(seat) { const p = state.players.find((x) => x.seat === seat); return p ? p.name : `Seat ${seat + 1}`; }
   function shade(hex, k) { // k>0 lighten towards white, k<0 darken
     const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255;
@@ -604,8 +604,7 @@ import { armLayout } from './shared/layout.js';
   function previewMarkup(id, idp) {
     const d = DESIGNS[id];
     const g = computeGeometry({ players: 4, cellsPerPlayer: 19, safeCells: 4, marblesPerPlayer: 4 }, 0, d.shape);
-    const col = (seat) => TEAM_COLORS[seat % 2][seat < 2 ? 0 : 1];
-    let h = boardMarkup(g, d, idp, col);
+    let h = boardMarkup(g, d, idp, seatColor);
     const sample = [[0, 'track', 0], [0, 'track', 5], [1, 'track', 3], [2, 'track', 9], [3, 'track', 0], [1, 'safe', 0]];
     for (const [owner, zone, pos] of sample) {
       const p = zone === 'track' ? g.track[(owner * g.cpp + pos) % g.L] : g.safe[owner][pos];
@@ -1037,7 +1036,7 @@ import { armLayout } from './shared/layout.js';
       d.dataset.seat = seat;
       if (lp.rot != null) { if (lp.rot) d.style.transform = `translate(-50%, -50%) rotate(${lp.rot}deg)`; }
       else if (lp.angle != null && !lp.horizontal) d.style.transform = `translate(-50%, -50%) rotate(${lp.angle < 0 ? -90 : 90}deg)`;
-      d.innerHTML = `<span class="av" style="background:${seatColor(seat)}">${esc(p ? initials(p.name) : '')}</span><span class="nm">${esc(p ? (seat === mySeat ? 'You' : p.name) : '')}</span><span class="cnt">${state.handCounts[seat] ?? 0}</span>`;
+      d.innerHTML = `<span class="av" style="background:${seatColor(seat)}">${esc(p ? initials(p.name) : '')}</span><span class="nm">${esc(p ? (seat === mySeat ? 'You' : p.name) : '')}</span><span class="team">${TEAM_NAMES[seat % (n / 2)]}</span><span class="cnt">${state.handCounts[seat] ?? 0}</span>`;
       seatsEl.appendChild(d);
       $('lbl' + seat).textContent = '';
     }
