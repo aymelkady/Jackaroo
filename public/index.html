@@ -97,7 +97,6 @@
         <span id="hudCode" class="code-pill"></span>
       </div>
       <div class="hud-right">
-        <button id="btnZoom" class="hbtn" title="Zoom board">🔍</button>
         <button id="btnSound" class="hbtn" title="Sound">🔊</button>
         <button id="btnDesign" class="hbtn" title="Board design">🎨</button>
         <button id="btnReact" class="hbtn" title="React">😊</button>
@@ -112,6 +111,10 @@
           <svg id="board" viewBox="-30 -30 1060 1060" aria-label="Jackaroo board"></svg>
           <div id="seats" class="seats"></div>
         </div>
+      </div>
+      <div class="zoom-ctl" role="group" aria-label="Board zoom">
+        <button id="btnZoomIn" class="hbtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="btnZoomOut" class="hbtn" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
       </div>
       <div id="toasts" class="toasts"></div>
     </div>
