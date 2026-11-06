@@ -18,6 +18,10 @@ import { armLayout } from './shared/layout.js';
   let boardKey = '';      // geometry cache key
   let geo = null;
   let lastMoveAt = 0, wasMyTurn = false, lastDealNo = 0;
+  let lastZones = null;   // marble id -> zone at the previous render (to tell which marbles a move sent home)
+  let lastSoundAt = 0;    // when the last move sound started (the turn chime waits for it)
+  const baseTitle = document.title;
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) document.title = baseTitle; });
   let prevPos = new Map(); // marble id -> {owner, zone, pos} as last rendered
   let scrolledFor = null;
   let lastLogT = 0;
@@ -57,10 +61,46 @@ import { armLayout } from './shared/layout.js';
       o.start(audio.currentTime + delay); o.stop(audio.currentTime + delay + dur + 0.05);
     } catch { /* no audio */ }
   }
+  // vibration works even with the sound switched off (a phone on silent still buzzes); Android only, iOS ignores it
+  function buzz(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch { /* not supported */ } }
+  // spoken alert: Arabic when the device language is Arabic, English otherwise
+  function say(en, ar) {
+    if (!store.sound || !('speechSynthesis' in window)) return;
+    try {
+      const arabic = /^ar\b/i.test(navigator.language || '');
+      const u = new SpeechSynthesisUtterance(arabic ? ar : en);
+      u.lang = arabic ? 'ar-SA' : 'en-US';
+      u.rate = 1.05; u.volume = 1;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch { /* no speech */ }
+  }
+  // browsers only allow audio and speech after a tap: unlock (and re-wake after the phone slept) on every tap
+  addEventListener('pointerdown', () => {
+    if (!store.sound) return;
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch { /* no audio */ }
+    try { if ('speechSynthesis' in window) speechSynthesis.getVoices(); } catch { /* no speech */ }
+  }, { capture: true, passive: true });
   const sfx = {
     move() { tone(900, 0.07, 'triangle', 0.08); tone(600, 0.09, 'triangle', 0.06, 0.05); },
     kill() { tone(160, 0.25, 'sawtooth', 0.1); tone(90, 0.3, 'square', 0.06, 0.05); },
-    turn() { tone(660, 0.12, 'sine', 0.1); tone(990, 0.18, 'sine', 0.1, 0.12); if (navigator.vibrate) navigator.vibrate([60, 40, 60]); },
+    // one of YOUR marbles was sent home: heavier sting, long buzz, and a spoken alert naming who did it
+    killedMine(byName, count) {
+      tone(330, 0.18, 'sawtooth', 0.16); tone(196, 0.22, 'sawtooth', 0.16, 0.16); tone(98, 0.45, 'square', 0.12, 0.34);
+      buzz([250, 100, 250, 100, 500]);
+      const many = count > 1;
+      const en = byName ? `${byName} killed ${many ? count + ' of your marbles' : 'your marble'}` : `${many ? count + ' of your marbles were' : 'Your marble was'} killed`;
+      const ar = byName ? `${byName} قتل ${many ? count + ' من أحجارك' : 'حجرك'}` : (many ? `انقتل ${count} من أحجارك` : 'انقتل حجرك');
+      setTimeout(() => say(en, ar), 450);
+    },
+    // a Jack swap: a quick two-tone warble; louder with a buzz when one of the swapped marbles is yours
+    swap(mine) {
+      const g = mine ? 0.16 : 0.09;
+      [587, 880, 587, 880].forEach((f, i) => tone(f, 0.08, 'triangle', g, i * 0.085));
+      if (mine) buzz([90, 60, 90]);
+    },
+    // your turn: three rising notes, loud enough to hear across the room, plus a buzz
+    turn() { tone(523, 0.14, 'sine', 0.2); tone(659, 0.14, 'sine', 0.2, 0.15); tone(988, 0.32, 'sine', 0.22, 0.3); buzz([120, 60, 120]); },
     win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, 'triangle', 0.12, i * 0.14)); },
     deal() { for (let i = 0; i < 4; i++) tone(1200 + i * 80, 0.04, 'square', 0.03, i * 0.06); },
   };
@@ -514,14 +554,120 @@ import { armLayout } from './shared/layout.js';
     $('designDialog').showModal();
   }
   $('btnDesign').onclick = openDesignPicker;
-  function setZoom(on) {
-    const w = document.querySelector('.board-wrap');
-    w.classList.toggle('zoomed', on);
-    localStorage.setItem('jk.zoom', on ? '1' : '0');
-    if (on) requestAnimationFrame(() => { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; });
+  // ---------- board zoom ----------
+  // zoomLevel scales .board-stage (width = zoom * 100% of .board-wrap, which scrolls). 1 = whole board fits.
+  const ZOOM_LEVELS = [1, 1.4, 1.9, 2.6];
+  const ZOOM_MIN = 1, ZOOM_MAX = 2.6;
+  const boardWrap = document.querySelector('.board-wrap');
+  let zoomLevel = 1;
+  let lastUserScrollAt = 0;
+  const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  function loadZoom() {
+    let z = NaN;
+    try {
+      z = parseFloat(localStorage.getItem('jk.zoomLevel'));
+      if (!Number.isFinite(z)) {
+        const old = localStorage.getItem('jk.zoom'); // migrate the old on/off toggle
+        if (old === '1') z = 1.9; else if (old === '0') z = 1;
+      }
+    } catch { /* storage blocked */ }
+    if (!Number.isFinite(z)) z = innerWidth <= 900 ? 1.9 : 1;
+    return clampZoom(z);
   }
-  $('btnZoom').onclick = () => setZoom(!document.querySelector('.board-wrap').classList.contains('zoomed'));
-  if (innerWidth <= 900 && localStorage.getItem('jk.zoom') !== '0') setZoom(true); // phones start zoomed on your own side
+  function updateZoomButtons() {
+    $('btnZoomIn').disabled = zoomLevel >= ZOOM_MAX - 0.01;
+    $('btnZoomOut').disabled = zoomLevel <= ZOOM_MIN + 0.01;
+  }
+  // fx, fy: focal point in boardWrap client coordinates (kept fixed while the scale changes); default is the view centre
+  function applyZoom(z, fx, fy, save = true) {
+    z = clampZoom(z);
+    const w = boardWrap, stage = w.firstElementChild;
+    if (fx === undefined) fx = w.clientWidth / 2;
+    if (fy === undefined) fy = w.clientHeight / 2;
+    const oldW = stage.offsetWidth || 1;
+    const cx = (w.scrollLeft + fx) / oldW, cy = (w.scrollTop + fy) / oldW; // fractions of the (square) stage
+    zoomLevel = z;
+    w.style.setProperty('--zoom', z);
+    w.classList.toggle('zoomed', z > 1.001);
+    const newW = stage.offsetWidth;
+    if (z > 1.001) { w.scrollLeft = cx * newW - fx; w.scrollTop = cy * newW - fy; } else { w.scrollLeft = 0; w.scrollTop = 0; }
+    updateZoomButtons();
+    if (save) { try { localStorage.setItem('jk.zoomLevel', String(Math.round(z * 100) / 100)); } catch { /* ignore */ } }
+  }
+  function setZoom(z) { applyZoom(z); }
+  function stepZoom(dir) {
+    const next = dir > 0 ? ZOOM_LEVELS.find((l) => l > zoomLevel + 0.01) : [...ZOOM_LEVELS].reverse().find((l) => l < zoomLevel - 0.01);
+    if (next !== undefined) setZoom(next);
+  }
+  $('btnZoomIn').onclick = () => stepZoom(1);
+  $('btnZoomOut').onclick = () => stepZoom(-1);
+
+  // scroll so the board point (SVG coords) is centred in the viewport; instant=true skips the animation
+  function scrollToSvg(x, y, instant) {
+    const w = boardWrap, sw = w.firstElementChild.offsetWidth;
+    const px = ((x + 30) / 1060) * sw, py = ((y + 30) / 1060) * sw;
+    const left = Math.max(0, Math.min(w.scrollWidth - w.clientWidth, px - w.clientWidth / 2));
+    const top = Math.max(0, Math.min(w.scrollHeight - w.clientHeight, py - w.clientHeight / 2));
+    w.scrollTo({ left, top, behavior: instant || reducedMotion ? 'auto' : 'smooth' });
+  }
+  function revealMySide(instant) {
+    if (zoomLevel <= 1.001) return;
+    const w = boardWrap, left = (w.scrollWidth - w.clientWidth) / 2, top = w.scrollHeight - w.clientHeight;
+    w.scrollTo({ left, top, behavior: instant || reducedMotion ? 'auto' : 'smooth' });
+  }
+  function revealMove(lm) {
+    if (!lm || zoomLevel <= 1.001 || !state) return;
+    if (Date.now() - lastUserScrollAt < 2500) return;
+    const w = boardWrap, sw = w.firstElementChild.offsetWidth;
+    const pts = [lm.marbleId, lm.targetId].filter(Boolean).map(marbleById).filter(Boolean).map((m) => marblePos(m)).filter(Boolean);
+    if (!pts.length) return;
+    const toPx = (p) => ({ x: ((p.x + 30) / 1060) * sw, y: ((p.y + 30) / 1060) * sw });
+    const m = (sw / 1060) * 30; // margin so a marble is not cut by the edge
+    const inView = (p) => { const q = toPx(p); return q.x >= w.scrollLeft + m && q.x <= w.scrollLeft + w.clientWidth - m && q.y >= w.scrollTop + m && q.y <= w.scrollTop + w.clientHeight - m; };
+    if (pts.every(inView)) return;
+    let c = pts[0];
+    if (pts.length > 1) {
+      const a = toPx(pts[0]), b = toPx(pts[1]);
+      const fits = Math.abs(a.x - b.x) < w.clientWidth - 2 * m && Math.abs(a.y - b.y) < w.clientHeight - 2 * m;
+      c = fits ? { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 } : pts[1];
+    }
+    scrollToSvg(c.x, c.y, false);
+  }
+  // user input: remember it (so revealMove does not fight a hand on the board); pinch / ctrl+wheel zoom
+  ['pointerdown', 'wheel', 'touchmove'].forEach((ev) => boardWrap.addEventListener(ev, () => { lastUserScrollAt = Date.now(); }, { passive: true }));
+  let pinch = null;
+  const touchDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
+  const touchMid = (t) => { const r = boardWrap.getBoundingClientRect(); return { x: (t[0].clientX + t[1].clientX) / 2 - r.left, y: (t[0].clientY + t[1].clientY) / 2 - r.top }; };
+  boardWrap.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      pinch = { d0: touchDist(e.touches), z0: zoomLevel, overflow: boardWrap.style.overflow };
+      boardWrap.style.overflow = 'hidden'; // stop a native pan already in flight from fighting the pinch
+      lastUserScrollAt = Date.now();
+    }
+  }, { passive: true });
+  boardWrap.addEventListener('touchmove', (e) => {
+    if (!pinch || e.touches.length !== 2) return;
+    if (e.cancelable) e.preventDefault();
+    const mid = touchMid(e.touches);
+    applyZoom(pinch.z0 * (touchDist(e.touches) / pinch.d0), mid.x, mid.y, false);
+  }, { passive: false });
+  const endPinch = (e) => {
+    if (!pinch || e.touches.length >= 2) return;
+    boardWrap.style.overflow = pinch.overflow;
+    pinch = null;
+    try { localStorage.setItem('jk.zoomLevel', String(Math.round(zoomLevel * 100) / 100)); } catch { /* ignore */ }
+    lastUserScrollAt = Date.now();
+  };
+  boardWrap.addEventListener('touchend', endPinch, { passive: true });
+  boardWrap.addEventListener('touchcancel', endPinch, { passive: true });
+  boardWrap.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const r = boardWrap.getBoundingClientRect();
+    applyZoom(zoomLevel * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0025)), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  applyZoom(loadZoom(), 0, 0, false);
+  requestAnimationFrame(() => revealMySide(true)); // start on your own side
 
   // ---------- move selection ----------
   function candidateMoves() {
@@ -1005,19 +1151,38 @@ import { armLayout } from './shared/layout.js';
     if (state.lastMove && state.lastMove.at !== lastMoveAt) {
       if (lastMoveAt) {
         const txt = state.log.length ? state.log[state.log.length - 1].text : '';
-        const killed = state.log.slice(-2).some((l) => /sends .* home/.test(l.text));
         const lm = state.lastMove;
+        // which marbles this move sent home (compare zones with the previous render; the old "last two log lines"
+        // check also fired on the move AFTER a kill)
+        const sentHome = lastZones ? state.marbles.filter((m) => m.zone === 'home' && lastZones.has(m.id) && lastZones.get(m.id) !== 'home') : [];
+        const killed = lastZones ? sentHome.length > 0 : state.log.slice(-1).some((l) => /sends .* home/.test(l.text));
         if (lm.seat !== mySeat && lm.kind !== 'tenBurn' && lm.kind !== 'queenBurn') flyBetween(rectOfSeat(lm.seat), $('discardCard').getBoundingClientRect(), { card: lm.card, duration: 650, fade: lm.kind === 'burn', size: .9 });
         if (lm.kind === 'queenBurn' && lm.burned) flyBetween(rectOfSeat(nextSeatOf(lm.seat)), $('discardCard').getBoundingClientRect(), { card: lm.burned, duration: 700, fade: true, size: .9 });
+        // marbles of mine (or of the partner I am playing for) that this move sent home
+        const isMine = (owner) => you && (owner === mySeat || owner === you.controls);
+        const killedMine = sentHome.filter((m) => isMine(m.owner));
+        const swapMine = lm.kind === 'jack' && [lm.marbleId, lm.targetId].some((id) => { const m = state.marbles.find((x) => x.id === id); return m && isMine(m.owner); });
         if (state.phase === 'finished') { sfx.win(); confetti(); showWin(); }
+        else if (killedMine.length) sfx.killedMine(lm.seat === mySeat ? '' : nameOf(lm.seat), killedMine.length);
         else if (killed) sfx.kill();
+        else if (lm.kind === 'jack') sfx.swap(swapMine);
         else if (/^Deal /.test(txt)) { sfx.move(); setTimeout(() => dealAnimation(you && you.hand ? you.hand.length : 4), 250); }
         else sfx.move();
+        lastSoundAt = Date.now();
         for (const e of [$('discardCard'), $('discardTxt')]) { e.classList.remove('discard-pop'); void e.getBoundingClientRect(); e.classList.add('discard-pop'); }
+        // zoomed in on a phone: bring someone else's move into view
+        if (lm.seat !== mySeat && typeof revealMove === 'function') revealMove(lm);
       }
       lastMoveAt = state.lastMove.at;
     }
-    if (myTurn && !wasMyTurn && lastMoveAt) sfx.turn();
+    const moveJustSounded = lastZones && state.lastMove && state.lastMove.at === lastMoveAt && Date.now() - lastSoundAt < 200;
+    lastZones = new Map(state.marbles.map((m) => [m.id, m.zone]));
+    if (myTurn && !wasMyTurn && lastMoveAt) {
+      // let the last move's sound (and buzz) finish first, so the two do not blur into one
+      setTimeout(sfx.turn, moveJustSounded ? 650 : 0);
+      if (document.hidden) document.title = '▶ Your turn · Jackaroo';
+      if (typeof revealMySide === 'function') setTimeout(revealMySide, 900); // after the last move has been seen
+    }
     wasMyTurn = !!myTurn;
     if (state.phase === 'playing') moveSpot(state.turn);
     if (state.dealNo !== lastDealNo && lastDealNo === 0 && state.phase === 'playing') setTimeout(() => dealAnimation(you && you.hand ? you.hand.length : 5), 700);
@@ -1076,7 +1241,7 @@ import { armLayout } from './shared/layout.js';
       if (wasHidden) { const st = document.querySelector('.board-stage'); st.classList.remove('intro'); void st.offsetWidth; st.classList.add('intro'); setTimeout(() => st.classList.remove('intro'), 1400); }
       if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; }
       renderGame();
-      if (wasHidden) requestAnimationFrame(() => { const w = document.querySelector('.board-wrap'); if (w.classList.contains('zoomed')) { w.scrollLeft = (w.scrollWidth - w.clientWidth) / 2; w.scrollTop = w.scrollHeight - w.clientHeight; } });
+      if (wasHidden) requestAnimationFrame(() => revealMySide(true));
     }
   }
 
