@@ -1195,7 +1195,7 @@ import { armLayout } from './shared/layout.js';
       // let the last move's sound (and buzz) finish first, so the two do not blur into one
       setTimeout(sfx.turn, moveJustSounded ? 650 : 0);
       if (document.hidden) document.title = '▶ Your turn · Jackaroo';
-      if (typeof revealMySide === 'function') setTimeout(revealMySide, 900); // after the last move has been seen
+      if (typeof revealMySide === 'function') setTimeout(revealMySide, 1800); // give the player time to see the last move first
     }
     wasMyTurn = !!myTurn;
     if (state.phase === 'playing') moveSpot(state.turn);

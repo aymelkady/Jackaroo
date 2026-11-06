@@ -250,7 +250,8 @@ button.design .ds { font-size: 12px; color: var(--muted); }
 @media (max-width: 900px) {
   .stage-wrap { padding: 52px 0 0; align-items: flex-start; }
   .board-wrap { width: 100%; }
-  .board-wrap.zoomed { max-height: calc(100vh - 146px - var(--card-w) * 1.56); max-height: calc(100dvh - 146px - var(--card-w) * 1.56); }
+  /* phones: a zoomed board uses all the height between the top bar and the hand, not just a square as wide as the screen */
+  .board-wrap.zoomed { aspect-ratio: auto; max-height: calc(100vh - 146px - var(--card-w) * 1.56); max-height: calc(100dvh - 146px - var(--card-w) * 1.56); }
   .toasts { top: 56px; left: 8px; max-width: 70%; }
   .toast { font-size: 12px; padding: 5px 8px; }
   .side-top { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 8px calc(8px + var(--safe-bottom)); gap: 4px; }
