@@ -6,7 +6,8 @@
 //          -> 10..14 down arm s+1's RIGHT column (toward the rim)
 //          -> 15..18 along arm s+1's outer row -> star_{s+1}
 // So every marble walks the whole board; a seat's safe column sits in the middle of its own arm and is
-// entered from the 18 that ends beside its star. The pen (4 waiting marbles) sits beside the star.
+// entered straight up from hole 17. Holes 18 and the star sit beside the column, not on the way home.
+// The pen (4 waiting marbles) sits beside the star.
 // Pure function, no DOM: runs in Node (tests) and in browsers.
 
 export const SUIT_GLYPHS = ['♠', '♥', '♦', '♣'];

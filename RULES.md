@@ -8,7 +8,7 @@ Jackaroo has no single official rulebook; every table has house rules. This app 
 - Every player has their own marble colour (red, blue, green, yellow; orange, purple, teal and ivory at bigger tables). Partners sit opposite; the team letter is shown on each seat chip.
 - Each player has 4 marbles, a **home** (where marbles wait and return to when killed), a **base** (the star hole at the corner of the player's arm, where marbles come out) and a **safe zone** of 4 cells.
 - The track has 19 cells per player (76 for 4 players, 114 for 6, 152 for 8). Marbles move clockwise.
-- On the board each player owns an arm of 18 numbered holes plus the star (the base). A marble leaves its star into the next player's arm at hole 1, runs round every arm and comes home through its own arm: hole 18 sits right next to its own star, and the safe column branches off diagonally from hole 18.
+- On the board each player owns an arm of 18 numbered holes plus the star (the base). A marble leaves its star into the next player's arm at hole 1, runs round every arm and comes home through its own arm: hole 18 sits right next to its own star, and a marble enters its safe column straight up from hole 17 of its own arm. Hole 18 and the star are not on the way home.
 - One standard 52-card deck for 4 players, two decks for 6 and 8. Jokers are optional (2 per deck).
 
 ## Dealing
@@ -45,9 +45,10 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 
 ## Safe zone
 
-- The safe zone branches off the hole just **before** your base, so the base is never on the way in. A marble enters its safe zone after going round the track. The card must fit: you cannot overshoot the last safe cell.
+- The safe column is entered straight up from hole **17** of your own arm, so neither hole 18 nor your base is on the way in. A marble enters its safe zone after going round the track. The card must fit: you cannot overshoot the last safe cell.
+- A marble standing on hole 18 has missed its entrance and must go round again (a new lap). An opponent's 5 can push a marble past its entrance, so it has to lap again, but it can never push it into the safe column.
 - Inside the safe zone marbles cannot jump over each other and cannot move backwards.
-- The classic trick works: a marble that moves 4 **backwards** from its base is now "at the end of its lap" and can enter the safe zone with a later card.
+- The classic trick works: from its base a marble moves 4 **backwards** to hole 15, then 16 and 17, and enters the safe zone with a later card.
 
 ## Finishing and winning
 
@@ -58,6 +59,6 @@ You must play a card if **any** card in your hand has a legal move. If no card c
 ## Things this app decides that tables often argue about
 
 - A King's 13-step move kills every unprotected marble it passes, yours and your partner's included.
-- A 5 played on another player's marble can kill, but cannot push that marble into its safe zone.
+- A 5 played on another player's marble can kill, but cannot push that marble into its safe zone. It can push it past its entrance, so that marble has to go round again.
 - A player who was made to burn by a 10 burns the card of their choice and loses the turn; play passes to the next player. A player whose hand runs out early is skipped until the next deal.
 - Jokers played as a Jack may swap (like a swap card) or move 11; played as a Queen they may move 12 or burn.

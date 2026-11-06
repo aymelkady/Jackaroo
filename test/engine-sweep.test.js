@@ -34,12 +34,16 @@ test('near home: no card ever carries a marble past its safe entrance (every sea
               if (p.marbleId !== mine[0].id || !(p.steps > 0)) continue;
               checked++;
               const where = { players, seat, pos, rank, suit, steps: p.steps, to: p.to };
-              if (pos + p.steps <= L - 1) {
+              const entry = L - 2; // safe column entered straight up from hole 17
+              if (pos > entry) {
+                // on hole 18: missed the entrance, goes round again
+                if (!(p.to.zone === 'track' && p.to.pos === (pos + p.steps) % L)) bad.push({ ...where, why: 'hole 18 did not lap' });
+              } else if (pos + p.steps <= entry) {
                 if (!(p.to.zone === 'track' && p.to.pos === pos + p.steps)) bad.push({ ...where, why: 'wrong track landing' });
-              } else if (!(p.to.zone === 'safe' && p.to.pos === pos + p.steps - L && p.to.pos < 4)) {
+              } else if (!(p.to.zone === 'safe' && p.to.pos === pos + p.steps - entry - 1 && p.to.pos < 4)) {
                 bad.push({ ...where, why: 'did not go up into the safe zone' });
               }
-              if (p.to.zone === 'track' && p.to.pos < pos) bad.push({ ...where, why: 'wrapped past the base' });
+              if (p.to.zone === 'track' && p.to.pos < pos && pos <= entry) bad.push({ ...where, why: 'wrapped past the base' });
             }
           }
         }
@@ -62,13 +66,16 @@ test('full games keep the movement invariants', () => {
       const mv = E.legalMoves(st, seat).find((m) => m.id === id);
       assert.ok(mv, 'bot chose an illegal move');
       const before = new Map(st.marbles.map((m) => [m.id, { ...m }]));
+      const ctrl = E.controlledSeat(st, seat);
       E.applyMove(st, seat, id);
       const free = mv.kind === 'back' || mv.kind === 'jack';
       for (const m of st.marbles) {
         const b = before.get(m.id);
         const info = { players, game: g, kind: mv.kind, rank: mv.rank, id: m.id, from: b.pos, to: m.pos };
         if (b.zone === 'track' && m.zone === 'track' && m.pos !== b.pos && !free) {
-          if (m.pos < b.pos) viol.push({ ...info, why: 'wrapped past base' });
+          // lapping is only legal from hole 18 (missed entrance) or when another player's 5 pushes the marble
+          const mayLap = b.pos > L - 2 || (mv.kind === 'five' && m.owner !== ctrl);
+          if (m.pos < b.pos && !mayLap) viol.push({ ...info, why: 'wrapped past base' });
           if ((m.pos - b.pos + L) % L > 13) viol.push({ ...info, why: 'moved more than 13' });
         }
         if (b.zone === 'safe' && m.zone !== 'safe') viol.push({ ...info, why: 'left safe zone' });

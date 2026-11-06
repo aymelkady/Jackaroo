@@ -110,6 +110,12 @@ export function trackLength(s) {
   return s.players * s.cellsPerPlayer;
 }
 
+// Track pos of the hole a marble enters its safe column from: hole 17 of its own arm (L-2).
+// Hole 18 (L-1) and the star are not on the way home.
+export function safeEntry(s) {
+  return trackLength(s) - 2;
+}
+
 export function partnerSeat(seat, n) {
   return (seat + n / 2) % n;
 }
@@ -327,14 +333,21 @@ function simulateStep(state, m, steps, opts = {}) {
     return { ok: true, kills, to: { zone: 'track', pos: ((m.pos - n) % L + L) % L } };
   }
 
+  // Forward. The safe column is entered straight up from hole 17 (pos ENTRY = L-2): from 17 one step is safe 0.
+  // Hole 18 (pos L-1) and the star are not on the way home, so a marble that is already past 17 has missed its
+  // entrance and must go round again (lap). Another player's 5 (byOther) never pushes a marble into the column:
+  // it stays on the track and may carry it past 18 and its own star onto a new lap.
+  const ENTRY = safeEntry(s);
+  const lap = m.pos > ENTRY;
+  const onTrackAt = (d) => byOther || lap || d <= ENTRY;
   for (let k = 1; k <= steps; k++) {
     const d = m.pos + k;
-    if (d <= L - 1) {
+    if (onTrackAt(d)) {
       const abs = (baseAbs(m.owner, s) + d) % L;
       const occ = marbleAtAbs(state, abs);
       if (!occ) continue;
       if (isProtected(occ)) return { ok: false };
-      if (k < steps && d + 1 <= L - 1 && isWall(state, occ, (abs + 1) % L)) return { ok: false }; // wall
+      if (k < steps && onTrackAt(d + 1) && isWall(state, occ, (abs + 1) % L)) return { ok: false }; // wall
       if (k === steps) {
         if (occ.owner === m.owner) return { ok: false };
         kills.push(occ.id);
@@ -344,16 +357,15 @@ function simulateStep(state, m, steps, opts = {}) {
         kills.push(occ.id);
       }
     } else {
-      // entering / inside the safe zone
-      if (byOther) return { ok: false }; // another player cannot push a marble into its safe zone
-      const si = d - L;
+      // entering / inside the safe zone: exact fit, no jumping over own marbles
+      const si = d - ENTRY - 1;
       if (si >= s.safeCells) return { ok: false };
       if (state.marbles.some((x) => x.owner === m.owner && x.zone === 'safe' && x.pos === si)) return { ok: false };
     }
   }
   const d = m.pos + steps;
-  if (d <= L - 1) return { ok: true, kills, to: { zone: 'track', pos: d } };
-  return { ok: true, kills, to: { zone: 'safe', pos: d - L } };
+  if (onTrackAt(d)) return { ok: true, kills, to: { zone: 'track', pos: d % L } };
+  return { ok: true, kills, to: { zone: 'safe', pos: d - ENTRY - 1 } };
 }
 
 function applyStep(state, marbleId, sim) {

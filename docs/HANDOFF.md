@@ -40,13 +40,13 @@ board game, in the GitHub repo `aymelkady/Jackaroo`, default and working branch 
   on the way (option); Q 12, red Q may burn a card of your choice from the next player; black J = SWAP card,
   red J = 11; 10 = move 10 or make the next player burn a card of their choice; 7 split; 5 moves any marble
   (not one on its own star); 4 back; Joker any card; no jumping over own marbles (option); same-team wall of
-  two consecutive marbles blocks everyone; marble on its own star untouchable; safe zone entered from hole 18;
+  two consecutive marbles blocks everyone; marble on its own star untouchable; safe zone entered straight up from hole 17 (hole 18 and the star are not on the way; a marble on 18 laps again);
   finished player moves partner's marbles; first team with 8 safe wins; 5 cards first deal then 4.
 - **Board**: default design `jj` (round walnut, rope ring) and alternative `saudi` (clipped-square walnut, gold inlay),
   both using the real-board geometry from his photos (`shared/layout.js`, tests in `test/layout.test.js`):
   ONE continuous loop of 76 holes. Between two stars: 1-5 up your left column toward the centre, 6-9 along
   the central ring quadrant, 10-14 down the next arm's near column, 15-18 along that arm's outer row, then
-  that arm's star. Your safe column is in the middle of your arm, entered from the 18 beside your star; the
+  that arm's star. Your safe column is in the middle of your arm, entered straight up from hole 17 (18 and your star sit beside it); the
   pen of 4 sits beside the star with a suit mark. Other designs (ring tracks) exist in the Board picker.
 - **Game UI**: full-screen table, round HUD buttons, seat chips on the rim with cards left and turn glow,
   fanned hand docked at the bottom, toasts for kills/deals/burns/win, slide-in panel with Log and Fairness,
@@ -72,8 +72,8 @@ a transient `commit_refs` failure on the gh-pages push just needs a rerun of the
 
 1. Board confirmed against his photos of the real boards (JJ round 4/6-player and the octagon board):
    per section 1-5 up the player's left column, 6-9 on the central ring, 10-14 down the next arm's near
-   column, 15-18 along its outer row to its star; safe column in the middle entered from the 18 beside the
-   star; pens on the diagonals. The real pens are engraved as the suit shape (♠ ♥ ♦ ♣) with the 4 marbles
+   column, 15-18 along its outer row to its star; safe column in the middle entered straight up from hole 17
+   (18 and the star sit beside it); pens on the diagonals. The real pens are engraved as the suit shape (♠ ♥ ♦ ♣) with the 4 marbles
    inside; ours is a square plate with the suit beside it. The octagon board has a 1x4 pen slot instead.
 2. Test a real game on the Pages site against Render (the sandbox cannot reach either; he or a session with
    network access has to do it). Render free tier sleeps after 15 min idle; the first connection takes ~1 min.

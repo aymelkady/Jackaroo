@@ -14,8 +14,8 @@ Status: approved spec. Implement exactly this; do not redesign.
 The current "cross" design draws each arm as `[star, 1..18]` with the safe column at the star. Real Saudi boards
 (round "JJ" board and the clipped-square board, see photos) draw each arm as `[1..18, star]`: the star is at the
 player's LEFT corner of the outer row, hole 18 ends next to the star, and the safe column sits in the middle of the
-arm, entered diagonally from 18. The engine already enters the safe zone from the hole before the star
-(`pos L-1`), so only the drawing (index -> position) and labels change. No engine track change.
+arm, entered straight up from hole 17. The engine enters the safe zone from hole 17
+(`pos L-2`), so only the drawing (index -> position) and labels change. No engine track change.
 
 ## 1. Geometry (pure function, new file `shared/layout.js`, unit-tested in Node)
 
@@ -45,7 +45,7 @@ Within arm s, index `idx` 0..18 (idx 18 = star) sits at:
 | 15,16,17 | 16,17,18 (outer row, toward the star) | (-sp, R1), (0, R1), (sp, R1) |
 | 18 | star | (d, R1) = (2sp, R1) |
 
-Safe column (4): `(0, R1 - k*sp)`, k = 1..4 (first safe hole directly above hole 17, diagonal from 18).
+Safe column (4): `(0, R1 - k*sp)`, k = 1..4 (first safe hole directly above hole 17, entered straight up from 17).
 Home pen (4, 2x2): centre `(d + 2.6*sp, R1 - 1.7*sp)`, offsets (+-0.55*sp, +-0.55*sp) along (l, o).
 Suit glyph position: `(d + 2.6*sp, R1 - 3.9*sp)`; suits by seat: ♠ ♥ ♦ ♣ (then repeat).
 Chip/label: `(0, R1 + 1.35*sp)`; `horizontal = |o.x| < 0.7`; `angle = atan2(o.y, o.x)` in degrees (side seats

@@ -140,16 +140,16 @@ test('safe zone: entered after a full lap, no overshoot, no passing inside', () 
   setHand(st, 0, ['3', '6', '2']);
   let lm = moves(st, 0);
   const three = lm.find((m) => m.rank === '3');
-  assert.deepEqual(three.to, { zone: 'safe', pos: 1 });
-  assert.ok(!lm.some((m) => m.rank === '6')); // L-2+6 = L+4 -> safe index 4 does not exist
+  assert.deepEqual(three.to, { zone: 'safe', pos: 2 }); // entry is hole 17 (L-2): 1 step is safe 0
+  assert.ok(!lm.some((m) => m.rank === '6')); // L-2+6 -> safe index 5 does not exist
   const two = lm.find((m) => m.rank === '2');
-  assert.deepEqual(two.to, { zone: 'safe', pos: 0 });
+  assert.deepEqual(two.to, { zone: 'safe', pos: 1 });
   // marble in safe cell 1 blocks another entering cell 2 via it
   put(st, 0, 1, 'safe', 1);
   setHand(st, 0, ['A']);
   lm = moves(st, 0);
   const moveA = lm.filter((m) => m.marbleId === 'm0_0');
-  // L-2 + 1 = L-1 is still on track (ok), L-2+11 overshoots
+  // from hole 17 an Ace as 1 goes straight up to safe 0 (ok), as 11 it overshoots
   assert.ok(moveA.some((m) => m.steps === 1));
   assert.ok(!moveA.some((m) => m.steps === 11));
 });
@@ -170,7 +170,7 @@ test('the 4-back trick: a marble that backs up from base can enter the safe zone
   setHand(st, 0, ['5']);
   lm = moves(st, 0);
   const five = lm.find((m) => m.marbleId === 'm0_0');
-  assert.deepEqual(five.to, { zone: 'safe', pos: 1 });
+  assert.deepEqual(five.to, { zone: 'safe', pos: 2 }); // 16, 17, then safe 0, 1, 2
 });
 
 test('7 can be split across two marbles; both parts validated sequentially', () => {
@@ -202,7 +202,7 @@ test('Jack swaps with any non-protected marble on the track', () => {
   assert.equal(E.absOf(marble(st, 1, 1), st.settings), 3);
 });
 
-test('5 may move an opponent marble but cannot push it into its safe zone', () => {
+test('5 may move an opponent marble but cannot push it into its safe zone (it laps instead)', () => {
   const st = game(4);
   const L = E.trackLength(st.settings);
   put(st, 0, 0, 'track', 20);
@@ -211,7 +211,8 @@ test('5 may move an opponent marble but cannot push it into its safe zone', () =
   setHand(st, 0, ['5']);
   const lm = moves(st, 0);
   assert.ok(lm.some((m) => m.marbleId === 'm1_0' && m.to.pos === 7));
-  assert.ok(!lm.some((m) => m.marbleId === 'm3_0'));
+  assert.ok(lm.some((m) => m.marbleId === 'm3_0' && m.to.zone === 'track' && m.to.pos === 2)); // pushed past its entrance
+  assert.ok(!lm.some((m) => m.marbleId === 'm3_0' && m.to.zone === 'safe'));
 });
 
 test('King 13 kills every marble it passes', () => {
@@ -237,7 +238,7 @@ test('a finished player moves the partner marbles; team with all 8 safe wins', (
   const lm = moves(st, 0);
   assert.ok(lm.every((m) => m.marbleId === 'm2_0'));
   for (let k = 1; k < 4; k++) put(st, 2, k, 'safe', k);
-  put(st, 2, 0, 'track', E.trackLength(st.settings) - 2);
+  put(st, 2, 0, 'track', E.trackLength(st.settings) - 3); // 16: 2 steps = 17, safe 0
   setHand(st, 0, ['2']);
   const lm2 = moves(st, 0);
   E.applyMove(st, 0, lm2[0].id);
@@ -350,7 +351,7 @@ test('near home: last free safe cell is 0, so cards that overshoot it can only b
   let lm = E.legalMoves(st, 0);
   assert.ok(lm.length > 0);
   assert.ok(lm.every((m) => m.kind === 'burn'), 'every card overshoots the last free safe cell');
-  setHand(st, 0, ['3']);
+  setHand(st, 0, ['2']); // 16 -> 17 -> safe 0
   st.turn = 0; st.pendingBurn = null;
   lm = E.legalMoves(st, 0);
   assert.equal(lm.length, 1);

@@ -342,9 +342,9 @@ import { armLayout } from './shared/layout.js';
     for (let i = 0; i < L; i++) { const f = frameAt(dp, sAt(i)); track.push({ x: f.x, y: f.y }); frames.push(f); }
     const safe = [], home = [], label = [];
     for (let seat = 0; seat < n; seat++) {
-      // the safe zone branches off the hole just BEFORE the base (where a marble enters after its lap),
-      // so the base itself is never on the way into the safe zone
-      const fe = frames[(seat * cpp - 1 + L) % L];
+      // the safe column is entered straight up from hole 17 (two holes before the base, engine safeEntry);
+      // hole 18 and the base are not on the way into the safe zone
+      const fe = frames[(seat * cpp - 2 + L) % L];
       const fb = frames[seat * cpp];
       const atE = (inward, ahead) => ({ x: fe.x + fe.nx * inward + fe.tx * ahead, y: fe.y + fe.ny * inward + fe.ty * ahead });
       const atB = (inward, ahead) => ({ x: fb.x + fb.nx * inward + fb.tx * ahead, y: fb.y + fb.ny * inward + fb.ty * ahead });
@@ -747,7 +747,7 @@ import { armLayout } from './shared/layout.js';
     }
     if (prev.zone !== 'track') return null;
     if (m.zone === 'safe') {
-      const pts = []; for (let d = prev.pos + 1; d <= L - 1; d++) pts.push(g.track[(m.owner * g.cpp + d) % L]);
+      const pts = []; for (let d = prev.pos + 1; d <= L - 2; d++) pts.push(g.track[(m.owner * g.cpp + d) % L]);
       for (let k = 0; k <= m.pos; k++) pts.push(g.safe[m.owner][k]);
       return pts.length <= 20 ? pts : null;
     }
