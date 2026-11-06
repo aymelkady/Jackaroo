@@ -70,12 +70,13 @@ Print the N=4 bottom-arm coordinates in the test output for eyeballing (console.
 
 ## 2. Client
 
-- Designs `saudi` (clipped-square walnut + handles, gold inlay, default) and new `jj` (round walnut, pale rim,
-  thin engraved gold lines, rope ring of alternating red/white dashes around the centre circle) both use
-  `armLayout`. Remove the plus-shaped `cross` track code (`plusVertices`, `plusPath`, cross branches).
-  Ring designs (`andalus`, `andalus8`, `ebony`, `oaksq`, `oak`) are unchanged.
+- Every design uses `armLayout` (the old ring-track code is gone); designs differ only in frame shape, wood and
+  inlay: `jj` (round walnut, pale rim, thin engraved gold lines, rope ring of alternating red/white dashes around
+  the centre circle), `saudi` (clipped-square walnut + handles, gold inlay), `andalus` / `ebony` / `oaksq`
+  (square frame), `andalus8` (octagon frame), `oak` (round frame). Classic skins keep their wood and inlay
+  pattern and use the brass centre medallion.
 - Drawing per arm: a rounded U outline hugging the two columns, outer row and arc (stroke accent, 1.5px,
-  fill rgba(0,0,0,.15)); a rounded outline around the safe column; a rounded plate around the pen with the
+  fill rgba(0,0,0,.15)); a rounded outline in the seat colour running from hole 17 (ringed in the seat colour, the entrance) up the four safe slots; a rounded plate around the pen with the
   suit glyph beside it; number labels: columns labelled on the inner side (toward the safe column),
   outer row labelled above the holes (toward the centre), star shown as ★ in the seat colour.
 - `geometry()` returns the same shape as today (`track, safe, home, label, cpp, L, n, rc, gap`) so marbles,

@@ -245,19 +245,18 @@ import { armLayout } from './shared/layout.js';
   const WOOD_JJ = { wood: ['#8a5530', '#5e3519', '#3a1f0d'], rim: ['#f0e4c8', '#c7ad80'], accent: '#d9b45e', holeTop: '#1c120a', num: 'rgba(240,214,160,.85)', grain: [0.42, 0.27, 0.12] };
   const DESIGNS = {
     jj: { label: 'JJ round', sub: 'the real JJ board (default)', shape: 'arms', frame: 'round', rope: true, pattern: null, ...WOOD_JJ },
-    saudi: { label: 'Saudi board', sub: 'the real board: walnut, gold inlay', shape: 'arms', frame: 'clipped', pattern: null, ...WOOD_SAUDI },
-    andalus: { label: 'Andalus walnut', sub: 'square, brass inlay', shape: 'square', pattern: 'girih', ...WOOD_ANDALUS },
-    andalus8: { label: 'Andalus octagon', sub: 'eight sides, brass inlay', shape: 'octagon', pattern: 'girih', ...WOOD_ANDALUS },
-    ebony: { label: 'Ebony & pearl', sub: 'square, mother-of-pearl', shape: 'square', pattern: 'pearl', ...WOOD_EBONY },
-    oaksq: { label: 'Plain oak', sub: 'square, no inlay', shape: 'square', pattern: null, ...WOOD_OAK },
-    oak: { label: 'Classic round', sub: 'the original board', shape: 'round', pattern: null, ...WOOD_OAK },
+    saudi: { label: 'Saudi board', sub: 'the real board: walnut, gold inlay, handles', shape: 'arms', frame: 'clipped', handles: true, pattern: null, ...WOOD_SAUDI },
+    andalus: { label: 'Andalus walnut', sub: 'brass inlay, square frame', shape: 'arms', frame: 'square', pattern: 'girih', ...WOOD_ANDALUS },
+    andalus8: { label: 'Andalus octagon', sub: 'brass inlay, octagon frame', shape: 'arms', frame: 'octagon', pattern: 'girih', ...WOOD_ANDALUS },
+    ebony: { label: 'Ebony & pearl', sub: 'mother-of-pearl, square frame', shape: 'arms', frame: 'square', pattern: 'pearl', ...WOOD_EBONY },
+    oaksq: { label: 'Plain oak', sub: 'no inlay, square frame', shape: 'arms', frame: 'square', pattern: null, ...WOOD_OAK },
+    oak: { label: 'Classic round', sub: 'oak, round frame', shape: 'arms', frame: 'round', pattern: null, ...WOOD_OAK },
   };
   function designId() { const d = localStorage.getItem('jk.design'); return DESIGNS[d] ? d : 'jj'; }
   function design() { return DESIGNS[designId()]; }
 
   // ---------- geometry ----------
-  // The track is a closed rounded polygon; cells sit at equal arc-length steps along it,
-  // starting at the bottom centre (the viewer's own base) and running clockwise.
+  // Body frames (square, octagon, clipped corners) as rounded polygons, used by the board outline.
   function shapeVertices(shape, half) {
     const cx = 500, cy = 500;
     if (shape === 'square') return { r: half * 0.3, v: [[cx - half, cy + half], [cx - half, cy - half], [cx + half, cy - half], [cx + half, cy + half]] };
@@ -284,83 +283,19 @@ import { armLayout } from './shared/layout.js';
     return d + 'Z';
   }
   function unit(a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; }
-  function densePath(shape, half) {
-    const pts = [];
-    if (shape === 'round') {
-      for (let i = 0; i < 2000; i++) { const a = Math.PI / 2 + (i / 2000) * 2 * Math.PI; pts.push([500 + half * Math.cos(a), 500 + half * Math.sin(a)]); }
-    } else {
-      const { r, v } = shapeVertices(shape, half);
-      const n = v.length;
-      for (let i = 0; i < n; i++) {
-        const p = v[i], q = v[(i + 1) % n], o = v[(i - 1 + n) % n];
-        const u1 = unit(o, p), u2 = unit(p, q);
-        const a = [p[0] - u1[0] * r, p[1] - u1[1] * r], b = [p[0] + u2[0] * r, p[1] + u2[1] * r];
-        for (let k = 0; k < 40; k++) { const t = k / 40; pts.push([(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * p[0] + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * p[1] + t * t * b[1]]); }
-        const c = [q[0] - u2[0] * r, q[1] - u2[1] * r];
-        for (let k = 0; k < 200; k++) { const t = k / 200; pts.push([b[0] + (c[0] - b[0]) * t, b[1] + (c[1] - b[1]) * t]); }
-      }
-      // rotate so the path starts at the bottom centre
-      let best = 0, bd = Infinity;
-      pts.forEach((p, i) => { const d = Math.hypot(p[0] - 500, p[1] - (500 + half)); if (d < bd) { bd = d; best = i; } });
-      pts.push(...pts.splice(0, best));
-    }
-    const cum = [0];
-    for (let i = 1; i <= pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i % pts.length][0] - pts[i - 1][0], pts[i % pts.length][1] - pts[i - 1][1]));
-    return { pts, cum, P: cum[pts.length] };
-  }
-  function frameAt(dp, s) {
-    const { pts, cum, P } = dp;
-    s = ((s % P) + P) % P;
-    let lo = 0, hi = pts.length;
-    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= s) lo = mid; else hi = mid; }
-    const a = pts[lo], b = pts[(lo + 1) % pts.length];
-    const seg = cum[lo + 1] - cum[lo] || 1, t = (s - cum[lo]) / seg;
-    const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
-    const c = pts[(lo + 8) % pts.length], o = pts[(lo - 8 + pts.length) % pts.length];
-    let tx = c[0] - o[0], ty = c[1] - o[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
-    let nx = -ty, ny = tx; // inward normal
-    if ((500 - x) * nx + (500 - y) * ny < 0) { nx = -nx; ny = -ny; }
-    return { x, y, tx, ty, nx, ny };
-  }
-  function computeArmGeometry(s, mySeat) {
-    // real Saudi / JJ board: one U-shaped arm per seat, see shared/layout.js
+  function computeGeometry(s, mySeat) {
+    // real Saudi / JJ board: one U-shaped arm per seat, see shared/layout.js (every design uses it)
     const lay = armLayout(s, mySeat);
     const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
     const rc = lay.rc, gap = rc * 2.45;
     return { L, cx: 500, cy: 500, rc, gap, half: lay.R1, shape: 'arms', lay, track: lay.track, safe: lay.safe, home: lay.home, label: lay.label, cpp, n };
-  }
-  function computeGeometry(s, mySeat, shape) {
-    if (shape === 'arms') return computeArmGeometry(s, mySeat);
-    const n = s.players, cpp = s.cellsPerPlayer, L = n * cpp;
-    const half = shape === 'round' ? 400 : shape === 'octagon' ? 452 : 425;
-    const dp = densePath(shape, half);
-    const spacing = dp.P / L;
-    const rc = Math.min(22, spacing * 0.44);
-    const gap = rc * 2.45;
-    const sAt = (i) => (i - mySeat * cpp) * spacing;
-    const track = [], frames = [];
-    for (let i = 0; i < L; i++) { const f = frameAt(dp, sAt(i)); track.push({ x: f.x, y: f.y }); frames.push(f); }
-    const safe = [], home = [], label = [];
-    for (let seat = 0; seat < n; seat++) {
-      // the safe column is entered straight up from hole 17 (two holes before the base, engine safeEntry);
-      // hole 18 and the base are not on the way into the safe zone
-      const fe = frames[(seat * cpp - 2 + L) % L];
-      const fb = frames[seat * cpp];
-      const atE = (inward, ahead) => ({ x: fe.x + fe.nx * inward + fe.tx * ahead, y: fe.y + fe.ny * inward + fe.ty * ahead });
-      const atB = (inward, ahead) => ({ x: fb.x + fb.nx * inward + fb.tx * ahead, y: fb.y + fb.ny * inward + fb.ty * ahead });
-      safe.push(Array.from({ length: s.safeCells }, (_, k) => atE(gap * (k + 1), 0)));
-      // home tray: inside the board, just ahead of the base
-      home.push([atB(gap * 1.15, gap * 1.4), atB(gap * 1.15, gap * 2.4), atB(gap * 2.15, gap * 1.4), atB(gap * 2.15, gap * 2.4)]);
-      label.push({ ...atB(gap * 3.35, gap * 1.9), horizontal: Math.abs(fb.tx) > 0.7 });
-    }
-    return { L, cx: 500, cy: 500, rc, gap, half, shape, track, frames, safe, home, label, cpp, n };
   }
   function geometry() {
     const s = state.settings;
     const mySeat = you ? you.seat : 0;
     const key = `${s.players}-${s.cellsPerPlayer}-${s.safeCells}-${mySeat}-${designId()}`;
     if (boardKey === key) return geo;
-    geo = computeGeometry(s, mySeat, design().shape);
+    geo = computeGeometry(s, mySeat);
     boardKey = key;
     return geo;
   }
@@ -425,11 +360,7 @@ import { armLayout } from './shared/layout.js';
     return h;
   }
 
-  function boardMarkup(g, d, idp, seatColorOf) {
-    return g.shape === 'arms' ? armBoardMarkup(g, d, idp, seatColorOf) : ringBoardMarkup(g, d, idp, seatColorOf);
-  }
-
-  // ---------- arm boards (saudi, jj) ----------
+  // ---------- board (all designs share the real U-arm layout; they differ in frame, wood and inlay) ----------
   const f1 = (v) => v.toFixed(1);
   function armBoardMarkup(g, d, idp, seatColorOf) {
     const lay = g.lay, n = g.n, sp = lay.sp, rc = g.rc, R1 = lay.R1, dd = lay.d;
@@ -446,31 +377,35 @@ import { armLayout } from './shared/layout.js';
     h += `</mask></defs>`;
     // body
     const R = lay.R;
-    if (d.frame === 'round') {
+    const poly = d.frame !== 'round';
+    // polygon frames: `ex` is the offset from the body edge; the octagon is sized by its apothem (flat sides on the axes)
+    const polyPath = (ex) => roundedPolyPath(d.frame, d.frame === 'octagon' ? (R - 5 + ex) / Math.cos(Math.PI / 8) : R - 5 + ex);
+    if (!poly) {
       h += `<circle cx="500" cy="500" r="${R + 10}" fill="url(#${idp}rimGrad)"/>`;
       h += `<circle cx="500" cy="500" r="${R - 8}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
+      if (d.pattern) h += `<circle cx="500" cy="500" r="${R - 8}" fill="url(#${idp}inlay)"/>`;
       h += `<circle cx="500" cy="500" r="${R - 8}" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="3"/>`;
       // thin engraved gold lines
       for (const r of [R - 18, R - 23]) h += `<circle cx="500" cy="500" r="${r}" fill="none" stroke="${d.accent}" stroke-width=".9" stroke-opacity=".7"/>`;
     } else {
       const half = R - 5;
-      h += `<path d="${roundedPolyPath('clipped', half + 14)}" fill="url(#${idp}rimGrad)"/>`;
-      h += `<path d="${roundedPolyPath('clipped', half)}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
-      h += `<path d="${roundedPolyPath('clipped', half - 6)}" fill="none" stroke="url(#${idp}brass)" stroke-width="2.5" stroke-opacity=".9"/>`;
-      h += `<path d="${roundedPolyPath('clipped', half - 13)}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".4"/>`;
-      // carrying handles cut into the sides, like the real board
-      for (const sx of [-1, 1]) h += `<rect x="${500 + sx * (half - 30) - 9}" y="${500 - 40}" width="18" height="80" rx="9" fill="#0d0805" stroke="${d.accent}" stroke-opacity=".6"/>`;
+      h += `<path d="${polyPath(14)}" fill="url(#${idp}rimGrad)"/>`;
+      h += `<path d="${polyPath(0)}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
+      if (d.pattern) h += `<path d="${polyPath(0)}" fill="url(#${idp}inlay)"/>`;
+      h += `<path d="${polyPath(-6)}" fill="none" stroke="url(#${idp}brass)" stroke-width="2.5" stroke-opacity=".9"/>`;
+      h += `<path d="${polyPath(-13)}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".4"/>`;
+      // carrying handles cut into the sides, like the real Saudi board
+      if (d.handles) for (const sx of [-1, 1]) h += `<rect x="${500 + sx * (half - 30) - 9}" y="${500 - 40}" width="18" height="80" rx="9" fill="#0d0805" stroke="${d.accent}" stroke-opacity=".6"/>`;
     }
     // centre circle
     const cR = lay.centerR;
-    if (d.frame === 'round') {
+    if (d.rope) {
       h += `<circle cx="500" cy="500" r="${cR}" fill="rgba(0,0,0,.22)" stroke="${d.accent}" stroke-width="1" stroke-opacity=".8"/>`;
-      if (d.rope) { // rope ring: alternating red / white dashes
-        const rr = cR + 7, circ = 2 * Math.PI * rr, k = Math.round(circ / 14) * 2, dash = circ / k;
-        h += `<circle cx="500" cy="500" r="${f1(rr)}" fill="none" stroke="#f4efe4" stroke-width="7"/>`;
-        h += `<circle cx="500" cy="500" r="${f1(rr)}" fill="none" stroke="#b8262b" stroke-width="7" stroke-dasharray="${dash.toFixed(3)} ${dash.toFixed(3)}" transform="rotate(-90 500 500)"/>`;
-        h += `<circle cx="500" cy="500" r="${f1(rr + 4.5)}" fill="none" stroke="${d.accent}" stroke-width=".9" stroke-opacity=".7"/>`;
-      }
+      // rope ring: alternating red / white dashes
+      const rr = cR + 7, circ = 2 * Math.PI * rr, k = Math.round(circ / 14) * 2, dash = circ / k;
+      h += `<circle cx="500" cy="500" r="${f1(rr)}" fill="none" stroke="#f4efe4" stroke-width="7"/>`;
+      h += `<circle cx="500" cy="500" r="${f1(rr)}" fill="none" stroke="#b8262b" stroke-width="7" stroke-dasharray="${dash.toFixed(3)} ${dash.toFixed(3)}" transform="rotate(-90 500 500)"/>`;
+      h += `<circle cx="500" cy="500" r="${f1(rr + 4.5)}" fill="none" stroke="${d.accent}" stroke-width=".9" stroke-opacity=".7"/>`;
     } else {
       h += `<circle cx="500" cy="500" r="${cR + 6}" fill="url(#${idp}brass)" stroke="${shade(d.accent, -0.45)}" stroke-width="2"/>`;
       h += `<circle cx="500" cy="500" r="${cR}" fill="${d.wood[2]}" stroke="rgba(255,240,200,.45)" stroke-width="1"/>`;
@@ -487,9 +422,9 @@ import { armLayout } from './shared/layout.js';
     const num = (p, txt, extra = '') => `<text class="num" x="${f1(p.x)}" y="${f1(p.y + fs * 0.36)}" style="font-size:${f1(fs)}px;fill:${d.num}${extra}">${txt}</text>`;
     for (let s = 0; s < n; s++) {
       const c = seatColorOf(s), rot = rotOf(s);
-      // safe column outline (touches the outer row: first safe hole is above hole 17)
-      const sa = at(s, 0, R1 - sp * 2.5 - 0.03 * sp);
-      h += pill(sa, sp * 3.88, sp, rot, `fill="rgba(0,0,0,.15)" stroke="${d.accent}" stroke-width="1.5"`);
+      // home lane outline in the seat colour: hole 17 (the entrance, on the outer row) plus the safe column above it
+      const sa = at(s, 0, R1 - sp * 1.94);
+      h += pill(sa, sp * 5.06, sp, rot, `fill="rgba(0,0,0,.15)" stroke="${c}" stroke-width="1.5"`);
       // pen plate + suit glyph
       const pc = at(s, dd + 2.6 * sp, R1 - 1.7 * sp);
       const ps = 1.1 * sp + 2 * rc * 0.95 + 0.25 * sp;
@@ -511,61 +446,15 @@ import { armLayout } from './shared/layout.js';
         nums += `<text class="num" x="${f1(p.x)}" y="${f1(p.y + rc * 0.42)}" style="font-size:${f1(rc * 1.15)}px;fill:${c};opacity:.95">★</text>`;
         return;
       }
+      if (p.k === 17) { // the entrance to the owner's safe column (the arm belongs to seat seg+1): ring it in their colour
+        const c = seatColorOf((p.seg + 1) % n);
+        h += hole(p, rc, `data-abs="${i}"`).replace(`style="${ring}`, `style="stroke:${c};stroke-width:2;`);
+        nums += num({ x: p.x, y: p.y - fs * 0.06 }, p.label, `;fill:${c};opacity:.9`);
+        return;
+      }
       h += hole(p, rc, `data-abs="${i}"`);
-      if (p.lx != null) nums += num({ x: p.lx, y: p.ly }, p.label);
-      else nums += num({ x: p.x, y: p.y - fs * 0.06 }, p.label, ';opacity:.8'); // 17: the safe column sits right above it
+      nums += num({ x: p.lx, y: p.ly }, p.label);
     });
-    h += nums;
-    return h;
-  }
-
-  function ringBoardMarkup(g, d, idp, seatColorOf) {
-    const n = g.n;
-    const shapeHalf = g.half + g.rc * 3.2;
-    const bodyPath = roundedPolyPath(g.shape, shapeHalf);
-    const rimPath = roundedPolyPath(g.shape, shapeHalf + 14);
-    const innerPath = roundedPolyPath(g.shape, shapeHalf - 4);
-    const trackPath = roundedPolyPath(g.shape, g.half);
-    let h = boardDefs(g, d, idp, seatColorOf);
-    h += `</defs>`;
-    // body
-    h += `<path d="${rimPath}" fill="url(#${idp}rimGrad)"/>`;
-    h += `<path d="${bodyPath}" fill="url(#${idp}woodGrad)" filter="url(#${idp}woodgrain)"/>`;
-    if (d.pattern) h += `<path d="${bodyPath}" fill="url(#${idp}inlay)"/>`;
-    h += `<path d="${innerPath}" fill="none" stroke="url(#${idp}brass)" stroke-width="2.5" stroke-opacity=".85"/>`;
-    h += `<path d="${roundedPolyPath(g.shape, shapeHalf - 11)}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35"/>`;
-    // track groove (wider band, slightly darker) + hairline
-    h += `<path d="${trackPath}" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="${g.rc * 2.9}" stroke-linejoin="round"/>`;
-    h += `<path d="${trackPath}" fill="none" stroke="${d.accent}" stroke-opacity=".18" stroke-width="1"/>`;
-    // centre medallion
-    const R1 = Math.min(175, g.half - g.gap * 4.8), R2 = R1 * 0.42;
-    let star = '';
-    for (let k = 0; k < 16; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 8, r = k % 2 ? R2 : R1; star += `${(500 + r * Math.cos(a)).toFixed(1)},${(500 + r * Math.sin(a)).toFixed(1)} `; }
-    h += `<polygon points="${star}" fill="rgba(0,0,0,.14)" stroke="url(#${idp}brass)" stroke-width="2" stroke-opacity=".7"/>`;
-    h += `<circle cx="500" cy="500" r="${R1 * 1.08}" fill="none" stroke="${d.accent}" stroke-width="1" stroke-opacity=".35" stroke-dasharray="6 5"/>`;
-    // holes
-    let nums = '';
-    const hole = (p, r, extra = '') => `<circle class="hole" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${idp}holeGrad)" filter="url(#${idp}inset)" style="" ${extra}/>`;
-    g.track.forEach((p, i) => {
-      const isBase = i % g.cpp === 0;
-      const seat = i / g.cpp;
-      h += isBase ? hole(p, g.rc * 1.12).replace('style="', `style="stroke:${seatColorOf(seat)};stroke-width:3;`) : hole(p, g.rc, `data-abs="${i}"`);
-      if (!isBase) nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.38).toFixed(1)}" style="font-size:${(g.rc * 0.95).toFixed(1)}px;fill:${d.num}">${i % g.cpp}</text>`;
-      else nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.45).toFixed(1)}" style="font-size:${(g.rc * 1.1).toFixed(1)}px;fill:${seatColorOf(seat)};opacity:.9">★</text>`;
-    });
-    for (let seat = 0; seat < n; seat++) {
-      const c = seatColorOf(seat);
-      g.safe[seat].forEach((p, k) => { h += hole(p, g.rc).replace('style="', `style="stroke:${c};stroke-width:1.8;`); nums += `<text class="num" x="${p.x.toFixed(1)}" y="${(p.y + g.rc * 0.38).toFixed(1)}" style="font-size:${(g.rc * 0.85).toFixed(1)}px;fill:${c};opacity:.75">${k + 1}</text>`; });
-      const hp = g.home[seat];
-      const mx = (hp[0].x + hp[3].x) / 2, my = (hp[0].y + hp[3].y) / 2;
-      const f = g.frames[seat * g.cpp];
-      const rot = Math.atan2(f.ty, f.tx) * 180 / Math.PI;
-      const w = g.gap * 2.1, hgt = g.gap * 2.1;
-      h += `<rect x="${(mx - w / 2).toFixed(1)}" y="${(my - hgt / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${hgt.toFixed(1)}" rx="${(g.rc * 0.9).toFixed(1)}" fill="rgba(0,0,0,.22)" stroke="${c}" stroke-opacity=".5" transform="rotate(${rot.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})"/>`;
-      hp.forEach((p) => { h += hole(p, g.rc * 0.95); });
-      const lp = g.label[seat];
-      h += `<text id="${idp}lbl${seat}" class="lbl" x="${lp.x.toFixed(1)}" y="${(lp.y + 7).toFixed(1)}" style="fill:${c};font-size:${Math.max(14, g.rc * 1.15).toFixed(1)}px"></text>`;
-    }
     h += nums;
     return h;
   }
@@ -574,24 +463,17 @@ import { armLayout } from './shared/layout.js';
     const g = geometry();
     const d = design();
     const svg = $('board');
-    let h = boardMarkup(g, d, '', seatColor);
-    // centre: title, status, piles
-    const arms = g.shape === 'arms';
-    // pile geometry: on the arm boards it scales with the centre circle (bigger boards, bigger piles)
-    let cw = 54, ch = 76, py = 536, pg = 10, cntFs = 13, txtFs = 22;
-    if (arms) {
-      const cR = g.lay.centerR;
-      cw = Math.round(cR * 0.36); ch = Math.round(cw * 1.4); pg = 0.09 * cw; // gap between piles = 0.18*cw
-      py = 500 - ch / 2 + cR * 0.12;
-      cntFs = Math.round(cw * 0.34); txtFs = Math.round(cw * 0.42);
-      const ty = py - cR * 0.16;
-      // inside the centre circle: status text above the deck and discard piles
-      h += `<text id="centerText" class="center-text" x="500" y="${ty.toFixed(1)}" style="fill:${shade(d.accent, 0.3)};font-size:20px"></text><text id="centerSub" class="center-sub" x="500" y="${(ty + 20).toFixed(1)}" style="font-size:13px"></text>`;
-    } else {
-      h += `<text class="center-title" x="500" y="430" style="fill:${d.accent};fill-opacity:.6">JACKAROO</text>`;
-      h += `<text id="centerText" class="center-text" x="500" y="478"></text><text id="centerSub" class="center-sub" x="500" y="506"></text>`;
-    }
-    const fs = (px) => (arms ? ` style="font-size:${px}px"` : '');
+    let h = armBoardMarkup(g, d, '', seatColor);
+    // centre: status text and piles
+    // pile geometry: scales with the centre circle (bigger boards, bigger piles)
+    const cR = g.lay.centerR;
+    const cw = Math.round(cR * 0.36), ch = Math.round(cw * 1.4), pg = 0.09 * cw; // gap between piles = 0.18*cw
+    const py = 500 - ch / 2 + cR * 0.12;
+    const cntFs = Math.round(cw * 0.34), txtFs = Math.round(cw * 0.42);
+    const ty = py - cR * 0.16;
+    // inside the centre circle: status text above the deck and discard piles
+    h += `<text id="centerText" class="center-text" x="500" y="${ty.toFixed(1)}" style="fill:${shade(d.accent, 0.3)};font-size:20px"></text><text id="centerSub" class="center-sub" x="500" y="${(ty + 20).toFixed(1)}" style="font-size:13px"></text>`;
+    const fs = (px) => ` style="font-size:${px}px"`;
     h += `<g id="piles">
       <rect class="pile-card" x="${500 - cw - pg + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6" fill="url(#cardBack)"/>
       <rect class="pile-card" x="${500 - cw - pg}" y="${py}" width="${cw}" height="${ch}" rx="6" fill="url(#cardBack)"/>
@@ -610,8 +492,8 @@ import { armLayout } from './shared/layout.js';
   // ---------- design picker ----------
   function previewMarkup(id, idp) {
     const d = DESIGNS[id];
-    const g = computeGeometry({ players: 4, cellsPerPlayer: 19, safeCells: 4, marblesPerPlayer: 4 }, 0, d.shape);
-    let h = boardMarkup(g, d, idp, seatColor);
+    const g = computeGeometry({ players: 4, cellsPerPlayer: 19, safeCells: 4, marblesPerPlayer: 4 }, 0);
+    let h = armBoardMarkup(g, d, idp, seatColor);
     const sample = [[0, 'track', 0], [0, 'track', 5], [1, 'track', 3], [2, 'track', 9], [3, 'track', 0], [1, 'safe', 0]];
     for (const [owner, zone, pos] of sample) {
       const p = zone === 'track' ? g.track[(owner * g.cpp + pos) % g.L] : g.safe[owner][pos];

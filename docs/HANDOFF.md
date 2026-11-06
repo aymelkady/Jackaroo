@@ -47,7 +47,7 @@ board game, in the GitHub repo `aymelkady/Jackaroo`, default and working branch 
   ONE continuous loop of 76 holes. Between two stars: 1-5 up your left column toward the centre, 6-9 along
   the central ring quadrant, 10-14 down the next arm's near column, 15-18 along that arm's outer row, then
   that arm's star. Your safe column is in the middle of your arm, entered straight up from hole 17 (18 and your star sit beside it); the
-  pen of 4 sits beside the star with a suit mark. Other designs (ring tracks) exist in the Board picker.
+  pen of 4 sits beside the star with a suit mark. All other designs in the Board picker (andalus, andalus8, ebony, oaksq, oak) use the same U-arm layout and differ only in frame shape (square, octagon, round), wood and inlay. Every board outlines the home lane in the player's colour from hole 17 up the safe column.
 - **Game UI**: full-screen table, round HUD buttons, seat chips on the rim with cards left and turn glow,
   fanned hand docked at the bottom, toasts for kills/deals/burns/win, slide-in panel with Log and Fairness,
   dealing/card-flight/marble-jump/kill/spotlight/win animations, sounds, phone layout zoomed on own side.

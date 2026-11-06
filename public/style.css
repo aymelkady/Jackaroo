@@ -202,7 +202,6 @@ body.in-game .topbar { display: none; }
 @keyframes tpulse { from { stroke-opacity: .45; } to { stroke-opacity: 1; } }
 .lbl { fill: #fff; font-size: 19px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(20,10,0,.75); stroke-width: 4px; font-family: var(--font-ui); }
 .lbl.turn { fill: #ffe082; }
-.center-title { fill: rgba(60,35,12,.55); font-size: 30px; font-family: var(--font-display); font-weight: 700; text-anchor: middle; letter-spacing: 4px; }
 .center-text { fill: #fff3dc; font-size: 28px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(40,20,5,.7); stroke-width: 5px; font-family: var(--font-ui); }
 .center-sub { fill: rgba(255,240,215,.85); font-size: 16px; text-anchor: middle; paint-order: stroke; stroke: rgba(40,20,5,.6); stroke-width: 4px; font-family: var(--font-ui); }
 .pile-card { stroke: #3b2a14; stroke-width: 1.2; }
