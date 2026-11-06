@@ -21,7 +21,11 @@ const host = new GameHost({ storage, botDelay: BOT_DELAY_MS });
 const app = express();
 app.disable('x-powered-by');
 // tells the client it is talking to a real server (the static build for GitHub Pages says 'p2p')
-app.get('/config.js', (req, res) => { res.type('application/javascript').send("window.JK_MODE = 'server';\n"); });
+// Build id: Render sets RENDER_GIT_COMMIT; elsewhere the start time stands in. A page that stays open across a
+// deploy compares it with /version and offers a one-tap update (see checkVersion in public/app.js).
+const VERSION = process.env.RENDER_GIT_COMMIT || `start-${Date.now()}`;
+app.get('/config.js', (req, res) => { res.set('Cache-Control', 'no-store').type('application/javascript').send(`window.JK_MODE = 'server';\nwindow.JK_VERSION = ${JSON.stringify(VERSION)};\n`); });
+app.get('/version', (req, res) => res.set('Cache-Control', 'no-store').json({ v: VERSION }));
 app.use('/shared', express.static(path.join(ROOT, 'shared')));
 app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 app.get('/healthz', (req, res) => res.json({ ok: true, games: host.size }));
