@@ -666,6 +666,20 @@ import { armLayout } from './shared/layout.js';
     const r = boardWrap.getBoundingClientRect();
     applyZoom(zoomLevel * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0025)), e.clientX - r.left, e.clientY - r.top);
   }, { passive: false });
+  // keep the zoom buttons over the board's lower-right corner (not the page's), whatever the board's size
+  const zoomCtl = document.querySelector('.zoom-ctl');
+  function placeZoomCtl() {
+    const w = boardWrap;
+    if (!w.offsetWidth) return;
+    zoomCtl.style.right = 'auto'; zoomCtl.style.bottom = 'auto';
+    zoomCtl.style.left = `${w.offsetLeft + w.offsetWidth - zoomCtl.offsetWidth - 10}px`;
+    const dock = document.querySelector('.side-top'), dr = dock.getBoundingClientRect(), wr = w.getBoundingClientRect();
+    let bottom = wr.bottom;
+    if (getComputedStyle(dock).position === 'fixed') bottom = Math.min(bottom, dr.top); // phones: stay above the hand dock
+    zoomCtl.style.top = `${w.offsetTop + (bottom - wr.top) - zoomCtl.offsetHeight - 10}px`;
+  }
+  if (window.ResizeObserver) { const ro = new ResizeObserver(placeZoomCtl); ro.observe(boardWrap); ro.observe(document.querySelector('.side-top')); }
+  addEventListener('resize', placeZoomCtl);
   applyZoom(loadZoom(), 0, 0, false);
   requestAnimationFrame(() => revealMySide(true)); // start on your own side
 
