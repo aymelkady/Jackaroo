@@ -577,21 +577,28 @@ import { armLayout } from './shared/layout.js';
     let h = boardMarkup(g, d, '', seatColor);
     // centre: title, status, piles
     const arms = g.shape === 'arms';
+    // pile geometry: on the arm boards it scales with the centre circle (bigger boards, bigger piles)
+    let cw = 54, ch = 76, py = 536, pg = 10, cntFs = 13, txtFs = 22;
     if (arms) {
+      const cR = g.lay.centerR;
+      cw = Math.round(cR * 0.36); ch = Math.round(cw * 1.4); pg = 0.09 * cw; // gap between piles = 0.18*cw
+      py = 500 - ch / 2 + cR * 0.12;
+      cntFs = Math.round(cw * 0.34); txtFs = Math.round(cw * 0.42);
+      const ty = py - cR * 0.16;
       // inside the centre circle: status text above the deck and discard piles
-      h += `<text id="centerText" class="center-text" x="500" y="458" style="fill:${shade(d.accent, 0.3)};font-size:20px"></text><text id="centerSub" class="center-sub" x="500" y="478" style="font-size:13px"></text>`;
+      h += `<text id="centerText" class="center-text" x="500" y="${ty.toFixed(1)}" style="fill:${shade(d.accent, 0.3)};font-size:20px"></text><text id="centerSub" class="center-sub" x="500" y="${(ty + 20).toFixed(1)}" style="font-size:13px"></text>`;
     } else {
       h += `<text class="center-title" x="500" y="430" style="fill:${d.accent};fill-opacity:.6">JACKAROO</text>`;
       h += `<text id="centerText" class="center-text" x="500" y="478"></text><text id="centerSub" class="center-sub" x="500" y="506"></text>`;
     }
-    const cw = arms ? 44 : 54, ch = arms ? 62 : 76, py = arms ? 490 : 536;
+    const fs = (px) => (arms ? ` style="font-size:${px}px"` : '');
     h += `<g id="piles">
-      <rect class="pile-card" x="${500 - cw - 10 + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6" fill="url(#cardBack)"/>
-      <rect class="pile-card" x="${500 - cw - 10}" y="${py}" width="${cw}" height="${ch}" rx="6" fill="url(#cardBack)"/>
-      <rect x="${500 - cw - 10 + 5}" y="${py + 5}" width="${cw - 10}" height="${ch - 10}" rx="4" fill="none" stroke="rgba(255,220,180,.5)" stroke-dasharray="3 2"/>
-      <text id="stockCnt" class="pile-cnt" x="${500 - cw / 2 - 10}" y="${py + ch / 2 + 5}"></text>
-      <rect id="discardCard" class="pile-face" x="${500 + 10}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
-      <text id="discardTxt" class="pile-txt" x="${500 + 10 + cw / 2}" y="${py + ch / 2 + 8}"></text>
+      <rect class="pile-card" x="${500 - cw - pg + 3}" y="${py + 3}" width="${cw}" height="${ch}" rx="6" opacity=".6" fill="url(#cardBack)"/>
+      <rect class="pile-card" x="${500 - cw - pg}" y="${py}" width="${cw}" height="${ch}" rx="6" fill="url(#cardBack)"/>
+      <rect x="${500 - cw - pg + 5}" y="${py + 5}" width="${cw - 10}" height="${ch - 10}" rx="4" fill="none" stroke="rgba(255,220,180,.5)" stroke-dasharray="3 2"/>
+      <text id="stockCnt" class="pile-cnt" x="${500 - cw / 2 - pg}" y="${py + ch / 2 + cntFs * 0.38}"${fs(cntFs)}></text>
+      <rect id="discardCard" class="pile-face" x="${500 + pg}" y="${py}" width="${cw}" height="${ch}" rx="6" opacity="0"/>
+      <text id="discardTxt" class="pile-txt" x="${500 + pg + cw / 2}" y="${py + ch / 2 + txtFs * 0.36}"${fs(txtFs)}></text>
     </g>`;
     h += `<radialGradient id="spotGrad"><stop offset="0" stop-color="#ffd977" stop-opacity=".55"/><stop offset=".6" stop-color="#ffd977" stop-opacity=".12"/><stop offset="1" stop-color="#ffd977" stop-opacity="0"/></radialGradient>
       <circle id="spot" class="spot" r="${(g.gap * 4.2).toFixed(0)}" cx="500" cy="500" fill="url(#spotGrad)" style="mix-blend-mode:screen;pointer-events:none"/>

@@ -1,5 +1,7 @@
 /* Jackaroo: a dark green card table, walnut and brass. Display: Cinzel; UI: Nunito. */
 :root {
+  /* hand card size: everything about a card (fonts, overlap, lift) scales from --card-w */
+  --card-w: clamp(72px, 7.2vw, 112px); --card-h: calc(var(--card-w) * 1.4);
   --bg: #0f1a14;
   --bg2: #0a110d;
   --felt: #16281d;
@@ -103,7 +105,8 @@ body.in-game .topbar { display: none; }
 .code-pill { font-family: ui-monospace, Menlo, monospace; letter-spacing: 2px; padding: 6px 10px; border-radius: 999px; background: rgba(10,17,13,.75); border: 1px solid rgba(227,185,91,.35); color: var(--gold); font-size: 13px; }
 .badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; display: grid; place-items: center; padding: 0 4px; }
 .stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 56px 12px 8px; position: relative; min-height: 0; }
-.board-wrap { width: min(100%, calc(100vh - 230px), 980px); width: min(100%, calc(100dvh - 230px), 980px); }
+/* the hand sits under the board: the board gives up the room the (larger) cards need */
+.board-wrap { width: min(100%, calc(100vh - 134px - var(--card-h)), 980px); width: min(100%, calc(100dvh - 134px - var(--card-h)), 980px); }
 .board-stage { position: relative; width: 100%; }
 #board { width: 100%; height: auto; display: block; filter: drop-shadow(0 24px 30px rgba(0,0,0,.6)); }
 .seats { position: absolute; inset: 0; pointer-events: none; }
@@ -133,24 +136,24 @@ body.in-game .topbar { display: none; }
 .prompt b { color: var(--ink); }
 .prompt .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
 .prompt .opts button { padding: 7px 12px; min-height: 0; font-size: 13px; }
-.hand { display: flex; align-items: flex-end; min-height: 108px; padding: 14px 24px 2px; }
-.pcard { width: 72px; height: 104px; border-radius: 10px; background: linear-gradient(160deg, #fffdf6 0%, #f3ead6 100%); color: #1a1a1a; border: 1px solid #c9bda0; box-shadow: -2px 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.6); display: flex; flex-direction: column; justify-content: space-between; padding: 7px 8px; cursor: pointer; font-weight: 800; user-select: none; transition: transform .16s, box-shadow .16s; position: relative; margin-left: -22px; transform-origin: 50% 110%; }
+.hand { display: flex; align-items: flex-end; min-height: calc(var(--card-h) + 4px); padding: calc(var(--card-w) * 0.2) 24px 2px; }
+.pcard { width: var(--card-w, 72px); height: var(--card-h, 101px); border-radius: calc(var(--card-w, 72px) * 0.13); background: linear-gradient(160deg, #fffdf6 0%, #f3ead6 100%); color: #1a1a1a; border: 1px solid #c9bda0; box-shadow: -2px 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.6); display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--card-w, 72px) * 0.09) calc(var(--card-w, 72px) * 0.11); cursor: pointer; font-weight: 800; user-select: none; transition: transform .16s, box-shadow .16s; position: relative; margin-left: calc(var(--card-w, 72px) * -0.22); transform-origin: 50% 110%; }
 .pcard:first-child { margin-left: 0; }
 .pcard.red { color: #c0392b; }
-.pcard .r { font-size: 20px; line-height: 1; }
-.pcard .s { font-size: 30px; text-align: center; line-height: 1; }
-.pcard .b { font-size: 20px; line-height: 1; transform: rotate(180deg); }
-.pcard.sel { transform: translateY(-18px) !important; box-shadow: 0 0 0 3px var(--gold), 0 12px 18px rgba(0,0,0,.55); }
+.pcard .r { font-size: calc(var(--card-w, 72px) * 0.26); line-height: 1; }
+.pcard .s { font-size: calc(var(--card-w, 72px) * 0.42); text-align: center; line-height: 1; }
+.pcard .b { font-size: calc(var(--card-w, 72px) * 0.26); line-height: 1; transform: rotate(180deg); }
+.pcard.sel { transform: translateY(calc(var(--card-w, 72px) * -0.16)) !important; box-shadow: 0 0 0 3px var(--gold), 0 12px 18px rgba(0,0,0,.55); }
 .pcard.dead { opacity: .45; filter: grayscale(.6); }
 .pcard.joker { background: linear-gradient(160deg, #fff6d5, #f5d98a); }
-.pcard.joker .s { font-size: 13px; letter-spacing: 1px; }
-.pcard .r .eleven { display: block; font-size: 12px; font-weight: 800; margin-top: 2px; letter-spacing: .5px; }
+.pcard.joker .s { font-size: calc(var(--card-w, 72px) * 0.18); letter-spacing: 1px; }
+.pcard .r .eleven { display: block; font-size: calc(var(--card-w, 72px) * 0.17); font-weight: 800; margin-top: calc(var(--card-w, 72px) * 0.03); letter-spacing: .5px; }
 .pcard .s.swap { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.pcard .s.swap .g { font-size: 28px; line-height: .9; }
-.pcard .s.swap .w { font-size: 10px; letter-spacing: 1.5px; font-weight: 800; }
+.pcard .s.swap .g { font-size: calc(var(--card-w, 72px) * 0.39); line-height: .9; }
+.pcard .s.swap .w { font-size: calc(var(--card-w, 72px) * 0.14); letter-spacing: 1.5px; font-weight: 800; }
 .pcard.swapcard { background: linear-gradient(160deg, #fbf7ee 0%, #e8e1d0 100%); }
 .pcard.swapcard.red { color: #c0392b; }
-@media (hover: hover) { .pcard:not(.dead):not(.sel):hover { transform: translateY(-10px) !important; z-index: 1; } }
+@media (hover: hover) { .pcard:not(.dead):not(.sel):hover { transform: translateY(calc(var(--card-w, 72px) * -0.16)) !important; z-index: 1; } }
 .reactions { display: flex; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(16,26,20,.95); border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
 .reactions button { font-size: 22px; padding: 2px 6px; min-height: 0; line-height: 1; border-radius: 999px; background: none; border: none; }
 .reactions button:active { transform: scale(1.2); }
@@ -233,20 +236,20 @@ button.design .ds { font-size: 12px; color: var(--muted); }
 @media (max-width: 900px) {
   .stage-wrap { padding: 52px 0 0; align-items: flex-start; }
   .board-wrap { width: 100%; }
-  .board-wrap.zoomed { overflow: auto; max-height: calc(100vh - 230px); max-height: calc(100dvh - 230px); }
+  .board-wrap.zoomed { overflow: auto; max-height: calc(100vh - 146px - var(--card-w) * 1.56); max-height: calc(100dvh - 146px - var(--card-w) * 1.56); }
   .board-wrap.zoomed .board-stage { width: 190%; }
   .toasts { top: 56px; left: 8px; max-width: 70%; }
   .toast { font-size: 12px; padding: 5px 8px; }
   .side-top { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 8px calc(8px + var(--safe-bottom)); gap: 4px; }
   .turn-banner { padding: 5px 12px; font-size: 13px; }
   .prompt { font-size: 12.5px; }
-  .hand { min-height: 92px; padding: 12px 10px 0; overflow-x: auto; max-width: 100%; }
-  .pcard { width: 58px; height: 84px; margin-left: -16px; padding: 5px 6px; flex: none; }
-  .pcard .r, .pcard .b { font-size: 16px; } .pcard .s { font-size: 24px; }
-  .pcard .s.swap .g { font-size: 22px; } .pcard .s.swap .w { font-size: 8px; letter-spacing: 1px; } .pcard .r .eleven { font-size: 10px; }
-  .pcard.sel { transform: translateY(-12px) !important; }
+  /* five fanned cards (with the overlap) span the board width; capped so tablets do not get giant cards */
+  :root { --card-w: min(96px, calc((100vw - 32px) / 4.6)); }
+  .hand { padding: calc(var(--card-w) * 0.2) calc(var(--card-w) * 0.22) calc(var(--card-w) * 0.16); overflow-x: auto; max-width: 100%; }
+  .pcard { flex: none; }
+  .pcard .s.swap .w { letter-spacing: 1px; }
   .reactions button { font-size: 19px; padding: 1px 4px; }
-  .screen.game { padding-bottom: 170px; }
+  .screen.game { padding-bottom: calc(var(--card-w) * 1.56 + 100px); }
   .panel { width: 100%; top: auto; height: 70vh; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; animation: slideup .25s ease; }
   @keyframes slideup { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
