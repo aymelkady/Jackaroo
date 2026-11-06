@@ -13,7 +13,7 @@ Live multiplayer Jackaroo board game. Node 22, no build step, two runtime deps (
 - `server/index.js` – Node: Express + ws wired to `GameHost`, file or Upstash Redis storage.
 - `public/p2p.js` – serverless mode (GitHub Pages): the creator's browser runs `GameHost` with localStorage storage; others connect over WebRTC data channels via PeerJS (vendored in `public/vendor/`). `config.js` selects the mode (`window.JK_MODE`), the Node server overrides it with 'server'.
 - `scripts/build-pages.sh` + `.github/workflows/pages.yml` – static build (public/ + shared/) deployed to GitHub Pages on every push.
-- `public/app.js` – rendering + tap flow. `candidateMoves()` filters the server's legal moves by card + picks so far; when one move remains with no more picks it is sent.
+- `public/app.js` – rendering + tap flow. `fitLayout()` measures the screen (visualViewport, safe-area probe, pointer type) and picks `body.layout-portrait` (board over a bottom hand dock) or `layout-side` (square board left, HUD + hand column right), sets `--card-w`, `--board-side`, `--panel-w` etc., and the default zoom; no device sniffing. `candidateMoves()` filters the server's legal moves by card + picks so far; when one move remains with no more picks it is sent.
 - `RULES.md` – the rule set in words. Keep it in sync with `movesForRank`.
 
 ## Conventions

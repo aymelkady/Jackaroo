@@ -13,7 +13,7 @@
 export const SUIT_GLYPHS = ['♠', '♥', '♦', '♣'];
 export const STAR = '★';
 
-const SPACING = { 4: 34, 6: 30, 8: 24 };
+export const SPACING = { 4: 34, 6: 30, 8: 24 };
 
 export function armLayout(settings, mySeat = 0) {
   const N = settings.players;
