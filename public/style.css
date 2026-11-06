@@ -68,7 +68,7 @@ body.in-game .topbar { display: none; }
 
 /* ---- home / lobby ---- */
 .screen { padding: 14px; flex: 1; padding-bottom: calc(14px + var(--safe-bottom)); }
-.screen.home { position: relative; overflow: hidden; }
+.screen.home { position: relative; overflow: hidden; flex: 1 0 auto; } /* never shrink below its content: with overflow hidden a flex item could be squeezed to the viewport and the bottom became unreachable on small or zoomed phones */
 .home-art { position: absolute; inset: -10% -10% auto -10%; opacity: .22; pointer-events: none; filter: blur(1px); }
 .home-art svg { width: 100%; height: auto; }
 .home-card { position: relative; max-width: 820px; margin: 0 auto; background: rgba(20,32,26,.88); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 20px; padding: 24px; box-shadow: 0 30px 60px rgba(0,0,0,.5); }
@@ -100,6 +100,10 @@ body.in-game .topbar { display: none; }
 .screen.game { padding: 0; display: flex; flex-direction: column; min-height: calc(100vh - var(--safe-top)); min-height: calc(100dvh - var(--safe-top)); }
 .hud { position: fixed; top: var(--safe-top); left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; z-index: 7; pointer-events: none; }
 .hud-left, .hud-right { display: flex; gap: 6px; align-items: center; pointer-events: auto; }
+.hud { gap: 6px; }
+.hud-left { flex: none; }
+/* never push icons off screen: on a narrow phone the icon group wraps to a second row instead */
+.hud-right { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .hbtn { width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 50%; background: rgba(10,17,13,.75); border: 1px solid rgba(227,185,91,.35); color: var(--gold); font-size: 17px; display: grid; place-items: center; backdrop-filter: blur(6px); position: relative; }
 .hbtn:hover { border-color: var(--gold); }
 .code-pill { font-family: ui-monospace, Menlo, monospace; letter-spacing: 2px; padding: 6px 10px; border-radius: 999px; background: rgba(10,17,13,.75); border: 1px solid rgba(227,185,91,.35); color: var(--gold); font-size: 13px; }
@@ -134,8 +138,11 @@ body.in-game .topbar { display: none; }
 @keyframes glow { from { box-shadow: 0 0 0 rgba(240,200,106,0); } to { box-shadow: 0 0 24px rgba(240,200,106,.65); } }
 .prompt { font-size: 13.5px; min-height: 1.2em; color: var(--muted); text-align: center; }
 .prompt b { color: var(--ink); }
-.prompt .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
-.prompt .opts button { padding: 7px 12px; min-height: 0; font-size: 13px; }
+.prompt .opts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; justify-content: center; }
+/* choice buttons (Burn this card, Move 13, Exit to base...): full-size touch targets, at least 48px like Android asks */
+.prompt .opts button { padding: 10px 18px; min-height: 48px; min-width: 96px; font-size: 15px; border-color: var(--gold-dark); background: linear-gradient(180deg, #2b3d33, #1d2b24); box-shadow: 0 2px 0 rgba(0,0,0,.45); touch-action: manipulation; }
+.prompt .opts button:active { transform: translateY(1px); box-shadow: none; }
+.prompt #btnCancel { min-height: 40px; padding: 8px 14px; touch-action: manipulation; }
 .hand { display: flex; align-items: flex-end; min-height: calc(var(--card-h) + 4px); padding: calc(var(--card-w) * 0.2) 24px 2px; }
 .pcard { width: var(--card-w, 72px); height: var(--card-h, 101px); border-radius: calc(var(--card-w, 72px) * 0.13); background: linear-gradient(160deg, #fffdf6 0%, #f3ead6 100%); color: #1a1a1a; border: 1px solid #c9bda0; box-shadow: -2px 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.6); display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--card-w, 72px) * 0.09) calc(var(--card-w, 72px) * 0.11); cursor: pointer; font-weight: 800; user-select: none; transition: transform .16s, box-shadow .16s; position: relative; margin-left: calc(var(--card-w, 72px) * -0.22); transform-origin: 50% 110%; }
 .pcard:first-child { margin-left: 0; }
@@ -254,6 +261,16 @@ button.design .ds { font-size: 12px; color: var(--muted); }
   @keyframes slideup { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
 #btnZoom { display: none; }
+@media (max-width: 430px) {
+  .hud { padding: 6px 8px; }
+  .hud-left, .hud-right { gap: 4px; }
+  .hbtn { width: 36px; height: 36px; font-size: 15px; }
+  .code-pill { font-size: 12px; letter-spacing: 1px; padding: 5px 8px; }
+}
+@media (max-width: 900px) {
+  /* the prompt floats over the board on phones: give it a backing so it stays readable */
+  .prompt:not(:empty) { background: rgba(10,17,13,.88); border: 1px solid var(--line); border-radius: 14px; padding: 6px 10px; max-width: calc(100vw - 16px); }
+}
 @media (max-width: 900px) { #btnZoom { display: grid; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
