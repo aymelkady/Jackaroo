@@ -225,6 +225,7 @@ body.in-game .topbar { display: none; }
 .discard-pop { transform-box: fill-box; transform-origin: center; animation: pop .4s cubic-bezier(.2,.8,.2,1); }
 @keyframes pop { 0% { transform: scale(1.6) rotate(-12deg); opacity: .3; } 100% { transform: none; opacity: 1; } }
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+.update-bar { position: fixed; left: 50%; top: calc(var(--safe-top) + 58px); transform: translateX(-50%); z-index: 60; max-width: calc(100vw - 24px); white-space: nowrap; animation: fadein .3s ease both; }
 #flyLayer { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
 .flycard { position: fixed; transition: transform .55s cubic-bezier(.3,.7,.2,1), opacity .55s; will-change: transform; margin: 0 !important; }
 .pcard.dealin { animation: dealin .45s cubic-bezier(.2,.8,.2,1) both; }

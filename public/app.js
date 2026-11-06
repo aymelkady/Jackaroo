@@ -116,7 +116,27 @@ import { armLayout } from './shared/layout.js';
     $('connDot').className = 'dot ' + (state === 'on' ? 'on' : state === 'wait' ? '' : 'off');
     $('netStatus').textContent = text || '';
   }
+  // A game tab can stay open for hours, across deploys, and keep running old code. When the server's build
+  // differs from the one this page loaded, offer a one-tap reload (the seat token and ?g=CODE bring you back).
+  const loadedVersion = window.JK_VERSION || null;
+  async function checkVersion() {
+    if (!loadedVersion || window.JK_MODE !== 'server' || $('updateBar')) return;
+    try {
+      const r = await fetch('/version', { cache: 'no-store' });
+      if (!r.ok) return;
+      const { v } = await r.json();
+      if (!v || v === loadedVersion) return;
+      const b = document.createElement('button');
+      b.id = 'updateBar'; b.className = 'update-bar primary';
+      b.textContent = 'New version available · tap to update';
+      b.onclick = () => location.reload();
+      document.body.appendChild(b);
+    } catch { /* offline: try again later */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
+  setInterval(checkVersion, 3 * 60 * 1000);
   function onOpen() {
+    checkVersion(); // a deploy restarts the server, so a reconnect is the moment to look
     if (pendingJoin) { const m = pendingJoin; pendingJoin = null; transport.send(m); }
     else if (code && token) transport.send({ type: 'join', code, token, name: store.name || 'Player' });
   }
