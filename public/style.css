@@ -1,7 +1,7 @@
 /* Jackaroo: a dark green card table, walnut and brass. Display: Cinzel; UI: Nunito. */
 :root {
   /* hand card size: everything about a card (fonts, overlap, lift) scales from --card-w */
-  --card-w: clamp(72px, 7.2vw, 112px); --card-h: calc(var(--card-w) * 1.4);
+  --card-w: clamp(64px, 6.2vw, 96px); --card-h: calc(var(--card-w) * 1.4);
   --bg: #0f1a14;
   --bg2: #0a110d;
   --felt: #16281d;
@@ -250,21 +250,22 @@ button.design .ds { font-size: 12px; color: var(--muted); }
 /* ---- phones ---- */
 @media (max-width: 900px) {
   .stage-wrap { padding: 52px 0 0; align-items: flex-start; }
-  .board-wrap { width: 100%; }
-  /* phones: a zoomed board uses all the height between the top bar and the hand, not just a square as wide as the screen */
-  .board-wrap.zoomed { aspect-ratio: auto; max-height: calc(100vh - 146px - var(--card-w) * 1.56); max-height: calc(100dvh - 146px - var(--card-w) * 1.56); }
+  /* the board gets exactly the room between the top bar and the hand dock (--dock-h is measured in app.js), so it
+     never sits under the cards; zoomed in, it uses the full width and all of that height */
+  .board-wrap { width: min(100%, calc(100vh - var(--safe-top) - 56px - var(--dock-h, 240px))); width: min(100%, calc(100dvh - var(--safe-top) - 56px - var(--dock-h, 240px))); margin: 0 auto; }
+  .board-wrap.zoomed { width: 100%; aspect-ratio: auto; max-height: calc(100vh - var(--safe-top) - 56px - var(--dock-h, 240px)); max-height: calc(100dvh - var(--safe-top) - 56px - var(--dock-h, 240px)); }
   .toasts { top: 56px; left: 8px; max-width: 70%; }
   .toast { font-size: 12px; padding: 5px 8px; }
   .side-top { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 8px calc(8px + var(--safe-bottom)); gap: 4px; }
-  .turn-banner { padding: 5px 12px; font-size: 13px; }
+  .turn-banner { padding: 4px 12px; font-size: 12.5px; }
   .prompt { font-size: 12.5px; }
   /* five fanned cards (with the overlap) span the board width; capped so tablets do not get giant cards */
-  :root { --card-w: min(96px, calc((100vw - 32px) / 4.6)); }
+  :root { --card-w: min(80px, calc((100vw - 32px) / 5.4)); } /* about 15% smaller than before: more room for the board */
   .hand { padding: calc(var(--card-w) * 0.2) calc(var(--card-w) * 0.22) calc(var(--card-w) * 0.16); overflow-x: auto; max-width: 100%; }
   .pcard { flex: none; }
   .pcard .s.swap .w { letter-spacing: 1px; }
   .reactions button { font-size: 19px; padding: 1px 4px; }
-  .screen.game { padding-bottom: calc(var(--card-w) * 1.56 + 100px); }
+  .screen.game { padding-bottom: var(--dock-h, 240px); }
   .panel { width: 100%; top: auto; height: 70vh; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; animation: slideup .25s ease; }
   @keyframes slideup { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 }

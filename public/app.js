@@ -689,6 +689,13 @@ import { armLayout } from './shared/layout.js';
   // keep the zoom buttons over the board's lower-right corner (not the page's), whatever the board's size
   const zoomCtl = document.querySelector('.zoom-ctl');
   function placeZoomCtl() {
+    // phones: publish the hand dock's height so the CSS sizes the board to the room that is really left. The prompt's
+    // extra lines and choice buttons come and go, so only one prompt line is counted (keeps the board from jumping).
+    const dockEl = document.querySelector('.side-top'), prEl = $('prompt');
+    if (dockEl.offsetHeight && getComputedStyle(dockEl).position === 'fixed') {
+      const base = Math.round(dockEl.offsetHeight - (prEl ? prEl.offsetHeight : 0) + 52); // 52: one prompt line with its cancel button
+      if (document.documentElement.style.getPropertyValue('--dock-h') !== base + 'px') document.documentElement.style.setProperty('--dock-h', base + 'px');
+    }
     const w = boardWrap;
     if (!w.offsetWidth) return;
     zoomCtl.style.right = 'auto'; zoomCtl.style.bottom = 'auto';
@@ -1152,8 +1159,8 @@ import { armLayout } from './shared/layout.js';
       let html = `<b>${card ? (card.rank === 'JOKER' ? 'Joker' : card.rank + SUIT[card.suit]) : ''}</b>`;
       const cands = candidateMoves().filter((m) => m.kind !== 'burn');
       const sevenD = cands.length && cands.every((m) => m.kind === 'seven') ? sevenDepth(cands[0], sel.picks.length) : -1;
-      if (sevenD === 0) html = '<b>7</b> · tap the marble that moves first (you can split the 7 between two marbles)';
-      else if (sevenD === 1) html = '<b>7</b> · tap the hole where it stops; the rest of the 7 goes to another marble';
+      if (sevenD === 0) html = '<b>7</b> · tap the first marble (you can split the 7)';
+      else if (sevenD === 1) html = '<b>7</b> · tap where it stops (the rest goes to another marble)';
       else if (sevenD === 2) html = `<b>7</b> · now tap the second marble (it moves ${cands[0].parts[1].steps})`;
       else {
         if (marblePicks.length) html += ' · ' + (sel.picks.length === 0 ? 'tap a glowing marble or a lit hole' : 'now tap the second marble');
