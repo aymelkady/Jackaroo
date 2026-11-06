@@ -1,5 +1,5 @@
 /* Jackaroo client. Talks JSON over a WebSocket; the server owns all rules. */
-import { armLayout } from './shared/layout.js';
+import { armLayout, SPACING } from './shared/layout.js';
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -582,18 +582,31 @@ import { armLayout } from './shared/layout.js';
   let zoomLevel = 1;
   let lastUserScrollAt = 0;
   const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
-  function loadZoom() {
+  // the zoom choice is remembered per layout mode ('portrait' / 'side'), see fitLayout below
+  let layoutMode = '', layoutBoardSide = 0, layoutCoarse = false;
+  const zoomKey = () => `jk.zoomLevel.${layoutMode || 'portrait'}`;
+  function storedZoom() {
     let z = NaN;
     try {
-      z = parseFloat(localStorage.getItem('jk.zoomLevel'));
-      if (!Number.isFinite(z)) {
-        const old = localStorage.getItem('jk.zoom'); // migrate the old on/off toggle
-        if (old === '1') z = 1.9; else if (old === '0') z = 1;
+      z = parseFloat(localStorage.getItem(zoomKey()));
+      if (!Number.isFinite(z) && layoutMode === 'portrait') {
+        const old = localStorage.getItem('jk.zoomLevel'); // migrate the old single key to portrait
+        const toggle = localStorage.getItem('jk.zoom'); // and the older on/off toggle
+        z = old !== null ? parseFloat(old) : toggle === '1' ? 1.9 : toggle === '0' ? 1 : NaN;
       }
     } catch { /* storage blocked */ }
-    if (!Number.isFinite(z)) z = innerWidth <= 900 ? 1.9 : 1;
-    return clampZoom(z);
+    return Number.isFinite(z) ? clampZoom(z) : NaN;
   }
+  // default zoom from tap comfort: on a touch screen aim for ~26 CSS px between neighbouring holes; with a mouse show the whole board
+  function defaultZoom() {
+    if (!layoutCoarse || !layoutBoardSide) return 1;
+    const n = state && state.settings ? state.settings.players : 4;
+    const spacing = (layoutBoardSide * (SPACING[n] || 24)) / 1060;
+    const z = Math.round(Math.min(2.6, Math.max(1, 26 / spacing)) * 100) / 100;
+    return z < 1.1 ? 1 : z; // a barely zoomed board only adds scrolling
+  }
+  function loadZoom() { const z = storedZoom(); return Number.isFinite(z) ? z : defaultZoom(); }
+  const saveZoom = (z) => { try { localStorage.setItem(zoomKey(), String(Math.round(z * 100) / 100)); } catch { /* ignore */ } };
   function updateZoomButtons() {
     $('btnZoomIn').disabled = zoomLevel >= ZOOM_MAX - 0.01;
     $('btnZoomOut').disabled = zoomLevel <= ZOOM_MIN + 0.01;
@@ -612,7 +625,7 @@ import { armLayout } from './shared/layout.js';
     const newW = stage.offsetWidth;
     if (z > 1.001) { w.scrollLeft = cx * newW - fx; w.scrollTop = cy * newW - fy; } else { w.scrollLeft = 0; w.scrollTop = 0; }
     updateZoomButtons();
-    if (save) { try { localStorage.setItem('jk.zoomLevel', String(Math.round(z * 100) / 100)); } catch { /* ignore */ } }
+    if (save) saveZoom(z);
   }
   function setZoom(z) { applyZoom(z); }
   function stepZoom(dir) {
@@ -675,7 +688,7 @@ import { armLayout } from './shared/layout.js';
     if (!pinch || e.touches.length >= 2) return;
     boardWrap.style.overflow = pinch.overflow;
     pinch = null;
-    try { localStorage.setItem('jk.zoomLevel', String(Math.round(zoomLevel * 100) / 100)); } catch { /* ignore */ }
+    saveZoom(zoomLevel);
     lastUserScrollAt = Date.now();
   };
   boardWrap.addEventListener('touchend', endPinch, { passive: true });
@@ -692,23 +705,83 @@ import { armLayout } from './shared/layout.js';
     // phones: publish the hand dock's height so the CSS sizes the board to the room that is really left. The prompt's
     // extra lines and choice buttons come and go, so only one prompt line is counted (keeps the board from jumping).
     const dockEl = document.querySelector('.side-top'), prEl = $('prompt');
-    if (dockEl.offsetHeight && getComputedStyle(dockEl).position === 'fixed') {
-      const base = Math.round(dockEl.offsetHeight - (prEl ? prEl.offsetHeight : 0) + 52); // 52: one prompt line with its cancel button
+    if (dockEl.offsetHeight && layoutMode === 'portrait') {
+      const base = Math.round(dockEl.offsetHeight - (prEl ? prEl.offsetHeight : 0) + 40); // 40: one prompt line
       if (document.documentElement.style.getPropertyValue('--dock-h') !== base + 'px') document.documentElement.style.setProperty('--dock-h', base + 'px');
     }
     const w = boardWrap;
     if (!w.offsetWidth) return;
     zoomCtl.style.right = 'auto'; zoomCtl.style.bottom = 'auto';
     zoomCtl.style.left = `${w.offsetLeft + w.offsetWidth - zoomCtl.offsetWidth - 10}px`;
-    const dock = document.querySelector('.side-top'), dr = dock.getBoundingClientRect(), wr = w.getBoundingClientRect();
+    const wr = w.getBoundingClientRect();
     let bottom = wr.bottom;
-    if (getComputedStyle(dock).position === 'fixed') bottom = Math.min(bottom, dr.top); // phones: stay above the hand dock
+    if (layoutMode === 'portrait') bottom = Math.min(bottom, dockEl.getBoundingClientRect().top); // stay above the hand dock
     zoomCtl.style.top = `${w.offsetTop + (bottom - wr.top) - zoomCtl.offsetHeight - 10}px`;
   }
   if (window.ResizeObserver) { const ro = new ResizeObserver(placeZoomCtl); ro.observe(boardWrap); ro.observe(document.querySelector('.side-top')); }
-  addEventListener('resize', placeZoomCtl);
-  applyZoom(loadZoom(), 0, 0, false);
-  requestAnimationFrame(() => revealMySide(true)); // start on your own side
+
+  // ---------- layout: measure the screen, derive card / board / panel sizes ----------
+  // portrait (usable height > 1.15 * width): board on top, hand dock at the bottom.
+  // side (any other shape): square board on the left, HUD + turn banner + prompt + hand in a column on the right.
+  const layoutProbe = document.createElement('div'); // its padding is the safe-area insets (CSS vars fall back to env())
+  layoutProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left)';
+  document.body.appendChild(layoutProbe);
+  const coarseMQ = window.matchMedia ? matchMedia('(pointer: coarse)') : null;
+  const root = document.documentElement;
+  function fitLayout(force) {
+    const vv = window.visualViewport, sc = vv && vv.scale ? vv.scale : 1; // scale: undo a browser pinch zoom
+    const W = Math.round(vv ? vv.width * sc : innerWidth), H = Math.round(vv ? vv.height * sc : innerHeight);
+    if (!W || !H) return;
+    const cs = getComputedStyle(layoutProbe);
+    const st = parseFloat(cs.paddingTop) || 0, sr = parseFloat(cs.paddingRight) || 0, sb = parseFloat(cs.paddingBottom) || 0, sl = parseFloat(cs.paddingLeft) || 0;
+    const uw = W - sl - sr, uh = H - st - sb; // usable area
+    const coarse = !!(coarseMQ && coarseMQ.matches);
+    const mode = uh > uw * 1.15 ? 'portrait' : 'side';
+    const CAP = coarse ? 84 : 100, MIN = 54, FAN = 4.7; // FAN: panel width in cards for five fanned cards plus padding (4.56) with a little air
+    const clampCard = (v) => Math.floor(Math.max(MIN, Math.min(CAP, v)));
+    let cw, S, v;
+    if (mode === 'portrait') {
+      cw = clampCard(Math.min(76, (uw - 24) / FAN, (0.28 * uh - 66) / 1.76)); // fits the width; the dock stays under ~28% of the height; 76: a bigger fan only steals board
+      const dockH = parseFloat(root.style.getPropertyValue('--dock-h')) || 1.76 * cw + 88;
+      S = Math.max(120, Math.min(uw, 980, H - st - 56 - dockH)); // board side at zoom 1 (CSS does the real sizing)
+      v = { '--card-w': cw + 'px' };
+    } else {
+      const cwMax = Math.min(CAP, 0.24 * uh); // cards at most ~24% of the height
+      S = Math.floor(Math.max(200, Math.min(uh, 980, uw - (FAN * MIN + 24)))); // the board takes all the height it can
+      const panelW = Math.floor(Math.min(uw - S, FAN * cwMax + 24));
+      cw = clampCard(Math.min(cwMax, (panelW - 24) / FAN));
+      const left = sl + Math.max(0, (uw - S - panelW) / 2); // centre the pair on very wide screens
+      v = { '--card-w': cw + 'px', '--board-side': S + 'px', '--board-left': left + 'px', '--board-top': st + Math.max(0, (uh - S) / 2) + 'px', '--panel-left': left + S + 'px', '--panel-w': panelW + 'px' };
+    }
+    const changed = mode !== layoutMode;
+    // zoomed in: remember which board point is at the centre of the view, to restore it after the resize
+    let keep = null;
+    if (!changed && !force && zoomLevel > 1.001 && boardWrap.offsetWidth) {
+      const sw = boardWrap.firstElementChild.offsetWidth || 1;
+      keep = { x: (boardWrap.scrollLeft + boardWrap.clientWidth / 2) / sw, y: (boardWrap.scrollTop + boardWrap.clientHeight / 2) / sw };
+    }
+    for (const k in v) root.style.setProperty(k, v[k]);
+    document.body.classList.toggle('layout-portrait', mode === 'portrait');
+    document.body.classList.toggle('layout-side', mode === 'side');
+    const hud = document.querySelector('.hud');
+    if (mode === 'side' && hud.offsetHeight) root.style.setProperty('--hud-h', hud.offsetHeight + 'px');
+    layoutMode = mode; layoutBoardSide = S; layoutCoarse = coarse;
+    if (changed || force) {
+      applyZoom(loadZoom(), undefined, undefined, false);
+      requestAnimationFrame(() => revealMySide(true)); // start on your own side
+    } else if (keep) {
+      const sw = boardWrap.firstElementChild.offsetWidth;
+      boardWrap.scrollLeft = keep.x * sw - boardWrap.clientWidth / 2; boardWrap.scrollTop = keep.y * sw - boardWrap.clientHeight / 2;
+    }
+    if (!changed && !force && !Number.isFinite(storedZoom()) && Math.abs(defaultZoom() - zoomLevel) > 0.15) applyZoom(defaultZoom(), undefined, undefined, false); // no user choice yet: follow the new size
+    placeZoomCtl();
+  }
+  let fitQueued = false;
+  const queueFit = () => { if (fitQueued) return; fitQueued = true; requestAnimationFrame(() => { fitQueued = false; fitLayout(); }); };
+  addEventListener('resize', queueFit);
+  addEventListener('orientationchange', () => { queueFit(); setTimeout(queueFit, 300); }); // iOS reports the old size at first
+  if (window.visualViewport) visualViewport.addEventListener('resize', queueFit);
+  fitLayout(true);
 
   // ---------- move selection ----------
   function candidateMoves() {
@@ -780,13 +853,18 @@ import { armLayout } from './shared/layout.js';
     // tapping a lit hole plays the move that ends there (when that is unambiguous)
     grp.querySelectorAll('circle.target').forEach((c) => (c.onclick = () => tapTarget(Number(c.dataset.owner), c.dataset.zone, Number(c.dataset.pos))));
     // on phones, bring the lit holes into view once per card selection
-    if (sel.cardId && scrolledFor !== sel.cardId && innerWidth <= 900) {
+    if (sel.cardId && scrolledFor !== sel.cardId) {
       scrolledFor = sel.cardId;
       const first = grp.querySelector('circle.target');
       if (first) {
         const r = first.getBoundingClientRect();
-        const visibleBottom = innerHeight - 180;
-        if (r.top < 60 || r.bottom > visibleBottom) window.scrollBy({ top: r.top - visibleBottom / 2, behavior: 'smooth' });
+        if (zoomLevel > 1.001) { // zoomed: scroll the board itself so the lit hole is in view
+          const wr = boardWrap.getBoundingClientRect();
+          if (r.left < wr.left + 20 || r.right > wr.right - 20 || r.top < wr.top + 20 || r.bottom > wr.bottom - 20) scrollToSvg(+first.getAttribute('cx'), +first.getAttribute('cy'), false);
+        } else if (layoutMode === 'portrait') {
+          const visibleBottom = innerHeight - 180;
+          if (r.top < 60 || r.bottom > visibleBottom) window.scrollBy({ top: r.top - visibleBottom / 2, behavior: 'smooth' });
+        }
       }
     }
   }
@@ -1282,7 +1360,7 @@ import { armLayout } from './shared/layout.js';
       if (wasHidden) { const st = document.querySelector('.board-stage'); st.classList.remove('intro'); void st.offsetWidth; st.classList.add('intro'); setTimeout(() => st.classList.remove('intro'), 1400); }
       if (state.phase !== 'playing' || !you || state.turn !== you.seat) { sel = { cardId: null, picks: [] }; hoverMarble = null; }
       renderGame();
-      if (wasHidden) requestAnimationFrame(() => revealMySide(true));
+      if (wasHidden) requestAnimationFrame(() => fitLayout(true)); // sizes need the visible screen (and the player count)
     }
   }
 

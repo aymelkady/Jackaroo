@@ -1,7 +1,9 @@
 /* Jackaroo: a dark green card table, walnut and brass. Display: Cinzel; UI: Nunito. */
 :root {
-  /* hand card size: everything about a card (fonts, overlap, lift) scales from --card-w */
-  --card-w: clamp(64px, 6.2vw, 96px); --card-h: calc(var(--card-w) * 1.4);
+  /* Game layout: app.js (fitLayout) measures the screen and sets --card-w, --board-side, --board-left, --board-top,
+     --panel-left, --panel-w, --hud-h and the body class layout-portrait / layout-side. Everything about a card
+     (fonts, overlap, lift) scales from --card-w. The values here only apply before that script has run. */
+  --card-w: min(80px, calc((100vw - 24px) / 4.75)); --card-h: calc(var(--card-w) * 1.4);
   --bg: #0f1a14;
   --bg2: #0a110d;
   --felt: #16281d;
@@ -16,7 +18,9 @@
   --danger: #e2574b;
   --ok: #6fcf7a;
   --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
   --font-ui: Nunito, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: Cinzel, Georgia, serif;
   color-scheme: dark;
@@ -98,7 +102,7 @@ body.in-game .topbar { display: none; }
 
 /* ---- game table ---- */
 .screen.game { padding: 0; display: flex; flex-direction: column; min-height: calc(100vh - var(--safe-top)); min-height: calc(100dvh - var(--safe-top)); }
-.hud { position: fixed; top: var(--safe-top); left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; z-index: 7; pointer-events: none; }
+.hud { position: fixed; top: var(--safe-top); left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 8px calc(10px + var(--safe-right)) 8px calc(10px + var(--safe-left)); z-index: 7; pointer-events: none; }
 .hud-left, .hud-right { display: flex; gap: 6px; align-items: center; pointer-events: auto; }
 .hud { gap: 6px; }
 .hud-left { flex: none; }
@@ -108,13 +112,15 @@ body.in-game .topbar { display: none; }
 .hbtn:hover { border-color: var(--gold); }
 .code-pill { font-family: ui-monospace, Menlo, monospace; letter-spacing: 2px; padding: 6px 10px; border-radius: 999px; background: rgba(10,17,13,.75); border: 1px solid rgba(227,185,91,.35); color: var(--gold); font-size: 13px; }
 .badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; display: grid; place-items: center; padding: 0 4px; }
-.stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 56px 12px 8px; position: relative; min-height: 0; }
-/* the hand sits under the board: the board gives up the room the (larger) cards need */
-.board-wrap { width: min(100%, calc(100vh - 134px - var(--card-h)), 980px); width: min(100%, calc(100dvh - 134px - var(--card-h)), 980px); }
+/* portrait (default): board on top, hand dock fixed at the bottom. The board gets exactly the room between the top bar and
+   the dock (--dock-h is measured in app.js), so it never sits under the cards; zoomed in, it uses the full width. */
+.stage-wrap { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 52px var(--safe-right) 0 var(--safe-left); position: relative; min-height: 0; }
+.board-wrap { width: min(100%, 980px, calc(100vh - var(--safe-top) - 56px - var(--dock-h, 240px))); width: min(100%, 980px, calc(100dvh - var(--safe-top) - 56px - var(--dock-h, 240px))); margin: 0 auto; }
 .board-stage { position: relative; width: 100%; }
 /* zoom: the stage grows inside a scrolling, square-capped wrap; two-finger pinch is handled in JS, one-finger pan stays native */
 .board-wrap { --zoom: 1; touch-action: pan-x pan-y; }
-.board-wrap.zoomed { overflow: auto; aspect-ratio: 1 / 1; scrollbar-width: none; overscroll-behavior: contain; }
+.board-wrap.zoomed { overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.board-wrap.zoomed { width: 100%; max-height: calc(100vh - var(--safe-top) - 56px - var(--dock-h, 240px)); max-height: calc(100dvh - var(--safe-top) - 56px - var(--dock-h, 240px)); }
 .board-wrap.zoomed::-webkit-scrollbar { display: none; }
 .board-wrap.zoomed .board-stage { width: calc(var(--zoom) * 100%); }
 .zoom-ctl { position: absolute; left: auto; top: auto; right: 14px; bottom: 14px; z-index: 5; /* JS (placeZoomCtl) pins it to the board's lower-right corner */ display: flex; flex-direction: column; gap: 8px; }
@@ -133,26 +139,29 @@ body.in-game .topbar { display: none; }
 .seat-chip.off { opacity: .55; }
 .seat-chip.off .nm { text-decoration: line-through; }
 .seat-chip.done .cnt::after { content: " ✓"; }
-.toasts { position: absolute; left: 14px; top: 60px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: min(46%, 360px); z-index: 3; }
-.toast { background: rgba(10,17,13,.85); border: 1px solid rgba(227,185,91,.3); border-left: 3px solid var(--gold); color: var(--ink); padding: 7px 10px; border-radius: 10px; font-size: 13px; animation: toastin .35s cubic-bezier(.2,.8,.2,1), toastout .5s ease 4s forwards; backdrop-filter: blur(6px); }
+.toasts { position: absolute; left: calc(8px + var(--safe-left)); top: 56px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: 70%; z-index: 3; }
+.toast { background: rgba(10,17,13,.85); border: 1px solid rgba(227,185,91,.3); border-left: 3px solid var(--gold); color: var(--ink); padding: 5px 8px; border-radius: 10px; font-size: 12px; animation: toastin .35s cubic-bezier(.2,.8,.2,1), toastout .5s ease 4s forwards; backdrop-filter: blur(6px); }
 .toast.kill { border-left-color: var(--danger); }
 @keyframes toastin { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
 @keyframes toastout { to { opacity: 0; transform: translateY(-6px); } }
 
 /* hand dock */
-.side-top { position: sticky; bottom: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 10px calc(10px + var(--safe-bottom)); background: linear-gradient(180deg, rgba(10,17,13,0) 0%, rgba(10,17,13,.92) 28%); }
-.turn-banner { padding: 7px 16px; border-radius: 999px; background: rgba(26,38,32,.9); border: 1px solid var(--line); font-weight: 800; font-size: 14px; letter-spacing: .3px; }
+.side-top { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left)); background: linear-gradient(180deg, rgba(10,17,13,0) 0%, rgba(10,17,13,.92) 28%); }
+.turn-banner { padding: 4px 12px; border-radius: 999px; background: rgba(26,38,32,.9); border: 1px solid var(--line); font-weight: 800; font-size: 12.5px; letter-spacing: .3px; }
 .turn-banner.mine { background: linear-gradient(180deg, #f0c86a, #c9943a); color: var(--gold-ink); border-color: var(--gold-dark); animation: glow 1.6s ease-in-out infinite alternate; }
 @keyframes glow { from { box-shadow: 0 0 0 rgba(240,200,106,0); } to { box-shadow: 0 0 24px rgba(240,200,106,.65); } }
-.prompt { font-size: 13.5px; min-height: 1.2em; color: var(--muted); text-align: center; }
+.prompt { font-size: 12.5px; min-height: 1.2em; color: var(--muted); text-align: center; }
+/* the prompt floats over the board in portrait: give it a backing so it stays readable */
+.prompt:not(:empty) { background: rgba(10,17,13,.88); border: 1px solid var(--line); border-radius: 14px; padding: 6px 10px; max-width: 100%; }
 .prompt b { color: var(--ink); }
 .prompt .opts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; justify-content: center; }
 /* choice buttons (Burn this card, Move 13, Exit to base...): full-size touch targets, at least 48px like Android asks */
 .prompt .opts button { padding: 10px 18px; min-height: 48px; min-width: 96px; font-size: 15px; border-color: var(--gold-dark); background: linear-gradient(180deg, #2b3d33, #1d2b24); box-shadow: 0 2px 0 rgba(0,0,0,.45); touch-action: manipulation; }
 .prompt .opts button:active { transform: translateY(1px); box-shadow: none; }
 .prompt #btnCancel { min-height: 40px; padding: 8px 14px; touch-action: manipulation; }
-.hand { display: flex; align-items: flex-end; min-height: calc(var(--card-h) + 4px); padding: calc(var(--card-w) * 0.2) 24px 2px; }
-.pcard { width: var(--card-w, 72px); height: var(--card-h, 101px); border-radius: calc(var(--card-w, 72px) * 0.13); background: linear-gradient(160deg, #fffdf6 0%, #f3ead6 100%); color: #1a1a1a; border: 1px solid #c9bda0; box-shadow: -2px 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.6); display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--card-w, 72px) * 0.09) calc(var(--card-w, 72px) * 0.11); cursor: pointer; font-weight: 800; user-select: none; transition: transform .16s, box-shadow .16s; position: relative; margin-left: calc(var(--card-w, 72px) * -0.22); transform-origin: 50% 110%; }
+/* five fanned cards span 4.12 * --card-w (overlap -0.22); fitLayout sizes --card-w so they always fit */
+.hand { display: flex; align-items: flex-end; min-height: calc(var(--card-h) + 4px); padding: calc(var(--card-w) * 0.2) calc(var(--card-w) * 0.22) calc(var(--card-w) * 0.16); overflow-x: auto; max-width: 100%; }
+.pcard { flex: none; width: var(--card-w, 72px); height: var(--card-h, 101px); border-radius: calc(var(--card-w, 72px) * 0.13); background: linear-gradient(160deg, #fffdf6 0%, #f3ead6 100%); color: #1a1a1a; border: 1px solid #c9bda0; box-shadow: -2px 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.6); display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--card-w, 72px) * 0.09) calc(var(--card-w, 72px) * 0.11); cursor: pointer; font-weight: 800; user-select: none; transition: transform .16s, box-shadow .16s; position: relative; margin-left: calc(var(--card-w, 72px) * -0.22); transform-origin: 50% 110%; }
 .pcard:first-child { margin-left: 0; }
 .pcard.red { color: #c0392b; }
 .pcard .r { font-size: calc(var(--card-w, 72px) * 0.26); line-height: 1; }
@@ -174,7 +183,7 @@ body.in-game .topbar { display: none; }
 .reactions button:active { transform: scale(1.2); }
 
 /* side panel */
-.panel { position: fixed; top: var(--safe-top); right: 0; bottom: 0; width: min(380px, 100%); background: rgba(16,26,20,.96); border-left: 1px solid var(--line); z-index: 8; display: flex; flex-direction: column; backdrop-filter: blur(10px); box-shadow: -10px 0 30px rgba(0,0,0,.5); animation: slidein .25s ease; }
+.panel { position: fixed; top: var(--safe-top); right: var(--safe-right); bottom: 0; width: min(380px, 100%); background: rgba(16,26,20,.96); border-left: 1px solid var(--line); z-index: 8; display: flex; flex-direction: column; backdrop-filter: blur(10px); box-shadow: -10px 0 30px rgba(0,0,0,.5); animation: slidein .25s ease; }
 @keyframes slidein { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 .panel-tabs { display: flex; gap: 4px; padding: 10px; border-bottom: 1px solid var(--line); align-items: center; }
 .panel-tabs .tab { background: none; border: none; color: var(--muted); padding: 8px 12px; min-height: 0; border-radius: 999px; }
@@ -247,38 +256,32 @@ button.design.sel { outline: 3px solid var(--gold); }
 button.design .dn { font-weight: 800; font-size: 14px; }
 button.design .ds { font-size: 12px; color: var(--muted); }
 
-/* ---- phones ---- */
-@media (max-width: 900px) {
-  .stage-wrap { padding: 52px 0 0; align-items: flex-start; }
-  /* the board gets exactly the room between the top bar and the hand dock (--dock-h is measured in app.js), so it
-     never sits under the cards; zoomed in, it uses the full width and all of that height */
-  .board-wrap { width: min(100%, calc(100vh - var(--safe-top) - 56px - var(--dock-h, 240px))); width: min(100%, calc(100dvh - var(--safe-top) - 56px - var(--dock-h, 240px))); margin: 0 auto; }
-  .board-wrap.zoomed { width: 100%; aspect-ratio: auto; max-height: calc(100vh - var(--safe-top) - 56px - var(--dock-h, 240px)); max-height: calc(100dvh - var(--safe-top) - 56px - var(--dock-h, 240px)); }
-  .toasts { top: 56px; left: 8px; max-width: 70%; }
-  .toast { font-size: 12px; padding: 5px 8px; }
-  .side-top { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 8px calc(8px + var(--safe-bottom)); gap: 4px; }
-  .turn-banner { padding: 4px 12px; font-size: 12.5px; }
-  .prompt { font-size: 12.5px; }
-  /* five fanned cards (with the overlap) span the board width; capped so tablets do not get giant cards */
-  :root { --card-w: min(80px, calc((100vw - 32px) / 5.4)); } /* about 15% smaller than before: more room for the board */
-  .hand { padding: calc(var(--card-w) * 0.2) calc(var(--card-w) * 0.22) calc(var(--card-w) * 0.16); overflow-x: auto; max-width: 100%; }
-  .pcard { flex: none; }
-  .pcard .s.swap .w { letter-spacing: 1px; }
-  .reactions button { font-size: 19px; padding: 1px 4px; }
-  .screen.game { padding-bottom: var(--dock-h, 240px); }
-  .panel { width: 100%; top: auto; height: 70vh; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; animation: slideup .25s ease; }
-  @keyframes slideup { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
-}
+/* ---- portrait extras ---- */
+.pcard .s.swap .w { letter-spacing: 1px; }
+.reactions button { font-size: 19px; padding: 1px 4px; }
+.screen.game { padding-bottom: var(--dock-h, 240px); }
+.panel { width: min(100%, 520px); height: 70vh; top: auto; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; animation: slideup .25s ease; }
 @media (max-width: 430px) {
-  .hud { padding: 6px 8px; }
+  .hud { padding-top: 6px; padding-bottom: 6px; }
   .hud-left, .hud-right { gap: 4px; }
   .hbtn { width: 36px; height: 36px; font-size: 15px; }
   .code-pill { font-size: 12px; letter-spacing: 1px; padding: 5px 8px; }
 }
-@media (max-width: 900px) {
-  /* the prompt floats over the board on phones: give it a backing so it stays readable */
-  .prompt:not(:empty) { background: rgba(10,17,13,.88); border: 1px solid var(--line); border-radius: 14px; padding: 6px 10px; max-width: calc(100vw - 16px); }
-}
+
+/* ---- side layout (any landscape): square board on the left, HUD + hand column on the right ---- */
+body.layout-side .screen.game { position: fixed; inset: 0; min-height: 0; padding: 0; }
+body.layout-side .stage-wrap { position: absolute; left: var(--board-left); top: var(--board-top); width: var(--board-side); height: var(--board-side); flex: none; padding: 0; }
+body.layout-side .board-wrap, body.layout-side .board-wrap.zoomed { width: 100%; max-height: none; margin: 0; }
+body.layout-side .board-wrap.zoomed { aspect-ratio: 1 / 1; }
+body.layout-side .toasts { top: 8px; left: 8px; max-width: 60%; }
+/* the HUD lives in the column, so its buttons never cover track holes */
+body.layout-side .hud { left: var(--panel-left); right: auto; width: var(--panel-w); padding: 8px; }
+body.layout-side .side-top { left: var(--panel-left); right: auto; width: var(--panel-w); top: calc(var(--safe-top) + var(--hud-h, 56px)); justify-content: flex-end; gap: 6px; padding: 4px 8px calc(8px + var(--safe-bottom)); background: none; overflow-y: auto; }
+body.layout-side .turn-banner { padding: 7px 16px; font-size: 14px; }
+body.layout-side .prompt { font-size: 13.5px; }
+body.layout-side .reactions button { font-size: 22px; padding: 2px 6px; }
+body.layout-side .panel { top: var(--safe-top); height: auto; width: min(380px, 100%); border-left: 1px solid var(--line); border-top: none; border-radius: 0; animation: slidein .25s ease; }
+body.layout-side .update-bar { left: calc(var(--panel-left) + var(--panel-w) / 2); max-width: calc(var(--panel-w) - 16px); white-space: normal; text-align: center; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 /* ---- motion pass ---- */
