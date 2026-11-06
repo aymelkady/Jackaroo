@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Jackaroo</title>
+  <meta name="description" content="Jackaroo board game: play live with friends in teams of two (4, 6 or 8 players)." />
+  <meta name="theme-color" content="#0f1a14" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Jackaroo" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@600;700&family=Nunito:wght@500;700;800&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Jackaroo</div>
+    <div class="topright">
+      <span id="netStatus" class="netstatus"></span><span id="connDot" class="dot" title="connection"></span>
+      <button id="btnRulesTop" class="link">Rules</button>
+    </div>
+  </header>
+
+  <!-- HOME: title screen -->
+  <section id="screenHome" class="screen home">
+    <div class="home-art" aria-hidden="true"><svg id="homeArt" viewBox="-30 -30 1060 1060"></svg></div>
+    <div class="home-card">
+      <div class="title-block">
+        <div class="title-marbles"><span class="hm red"></span><span class="hm blue"></span><span class="hm green"></span><span class="hm gold"></span></div>
+        <h1 class="game-title">Jackaroo</h1>
+        <p class="tagline">Marbles, cards and partners. Four, six or eight players at one table.</p>
+      </div>
+      <label>Your name <input id="name" maxlength="20" placeholder="e.g. Ahmed" autocomplete="nickname" /></label>
+      <div class="two-col">
+        <div class="box">
+          <h2>New table</h2>
+          <label>Players
+            <select id="players">
+              <option value="4">4 players · 2 teams</option>
+              <option value="6">6 players · 3 teams</option>
+              <option value="8">8 players · 4 teams</option>
+            </select>
+          </label>
+          <details class="opts">
+            <summary>House rules</summary>
+            <label class="chk"><input type="checkbox" id="optRandomTeams" checked /> Random teams at start</label>
+            <label class="chk"><input type="checkbox" id="optKing" checked /> King may move 13 and kill on the way</label>
+            <label class="chk"><input type="checkbox" id="optFive" checked /> 5 may move any marble, even opponents</label>
+            <label class="chk"><input type="checkbox" id="optComplex" checked /> Black Jack swaps, red Jack 11; red Queen and 10 can burn</label>
+            <label class="chk"><input type="checkbox" id="optJumpOwn" /> May jump over your own marbles</label>
+            <label class="chk"><input type="checkbox" id="optJokers" /> Add jokers (play as any card)</label>
+          </details>
+          <button id="btnCreate" class="primary big">Create table</button>
+        </div>
+        <div class="box">
+          <h2>Join a table</h2>
+          <label>Table code <input id="code" maxlength="5" placeholder="ABCDE" autocapitalize="characters" /></label>
+          <button id="btnJoin" class="primary big">Join</button>
+          <button id="btnWatch" class="link">Just watch</button>
+          <div id="recent" class="recent"></div>
+        </div>
+      </div>
+      <p id="homeError" class="error"></p>
+      <p id="p2pNote" class="muted small hidden">No server needed: whoever creates the table hosts it in their own browser and the others connect to them directly. The host keeps the page open; if they close it, the table pauses until they open the link again.</p>
+      <p id="installHint" class="muted small hidden">Tip: add this page to your home screen to play it like an app.</p>
+    </div>
+  </section>
+
+  <!-- LOBBY -->
+  <section id="screenLobby" class="screen hidden">
+    <div class="home-card">
+      <h1>Table <span id="lobbyCode" class="code"></span></h1>
+      <p class="muted">Send this link to your friends: <a id="shareLink" href="#"></a> <button id="btnCopy" class="link">copy</button> <button id="btnShare" class="link hidden">share…</button></p>
+      <div id="seatGrid" class="seat-grid"></div>
+      <div id="lobbySettings" class="settings"></div>
+      <div class="row">
+        <button id="btnStart" class="primary big">Start game</button>
+        <button id="btnShuffle" class="secondary">Shuffle seats</button>
+        <button id="btnAddBot" class="secondary">Add a bot</button>
+        <button id="btnLeave" class="link">Leave</button>
+      </div>
+      <p id="lobbyHint" class="muted"></p>
+      <p id="lobbyError" class="error"></p>
+    </div>
+  </section>
+
+  <!-- GAME: the table -->
+  <section id="screenGame" class="screen game hidden">
+    <div class="hud">
+      <div class="hud-left">
+        <button id="btnHome" class="hbtn" title="Leave table">⌂</button>
+        <span id="hudCode" class="code-pill"></span>
+      </div>
+      <div class="hud-right">
+        <button id="btnSound" class="hbtn" title="Sound">🔊</button>
+        <button id="btnDesign" class="hbtn" title="Board design">🎨</button>
+        <button id="btnReact" class="hbtn" title="React">😊</button>
+        <button id="btnPanel" class="hbtn" title="Game log">📜</button>
+        <button id="btnRules" class="hbtn" title="Rules">?</button>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <div class="board-wrap">
+        <div class="board-stage">
+          <svg id="board" viewBox="-30 -30 1060 1060" aria-label="Jackaroo board"></svg>
+          <div id="seats" class="seats"></div>
+        </div>
+      </div>
+      <div class="zoom-ctl" role="group" aria-label="Board zoom">
+        <button id="btnZoomIn" class="hbtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="btnZoomOut" class="hbtn" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      </div>
+      <div id="toasts" class="toasts"></div>
+    </div>
+
+    <div class="side-top">
+      <div id="reactions" class="reactions hidden"></div>
+      <div id="turnBanner" class="turn-banner"></div>
+      <div id="prompt" class="prompt"></div>
+      <div id="hand" class="hand"></div>
+      <div id="gameError" class="error"></div>
+    </div>
+
+    <aside id="panel" class="panel hidden">
+      <div class="panel-tabs">
+        <button class="tab sel" data-tab="log">Log</button>
+        <button class="tab" data-tab="fair">Fairness</button>
+        <button id="btnPanelClose" class="hbtn" title="Close">✕</button>
+      </div>
+      <div class="panel-body">
+        <div id="tabLog" class="tabpane"><div id="log" class="log"></div></div>
+        <div id="tabFair" class="tabpane hidden"><div id="fairness" class="fairness"></div></div>
+      </div>
+      <div class="panel-foot"><button id="btnRematch" class="primary hidden">Play again</button></div>
+    </aside>
+  </section>
+
+  <!-- RULES -->
+  <dialog id="rulesDialog">
+    <article>
+      <h2>How this Jackaroo plays</h2>
+      <p>Teams of two, partners sit opposite. Each player has 4 marbles. Bring all 8 marbles of your team into your safe zones to win. You must play a card if any card in your hand has a legal move; otherwise you burn a card. Every player has their own marble colour (red, blue, green, yellow; orange, purple, teal and ivory at bigger tables). Partners sit opposite; the team letter is shown on each seat chip.</p>
+      <table>
+        <tr><th>A</th><td>Take a marble out to your base, or move 1 or 11.</td></tr>
+        <tr><th>K</th><td>Take a marble out, or move 13 killing every marble you pass (option).</td></tr>
+        <tr><th>Q</th><td>Move 12. A <b>red</b> Queen may instead pick one of the next player's cards (face down) and burn it.</td></tr>
+        <tr><th>J</th><td><b>Black</b> Jack is a <b>swap card</b> (⇄): swap one of your marbles with any other player's marble on the track. <b>Red</b> Jack: move 11.</td></tr>
+        <tr><th>10</th><td>Move 10. A <b>red</b> 10 may instead make the next player burn a card of their choice and lose their turn; a black 10 only moves 10.</td></tr>
+        <tr><th>9 8 6 3 2</th><td>Move that many steps.</td></tr>
+        <tr><th>7</th><td>Move 7, or split the 7 between two of your marbles. Tap the marble, then the hole it stops on, then the second marble.</td></tr>
+        <tr><th>5</th><td>Move any marble on the track 5 steps, yours or anyone's (option). Another player's marble on its own base cannot be moved.</td></tr>
+        <tr><th>4</th><td>Move 4 steps backwards.</td></tr>
+        <tr><th>Joker</th><td>Plays as any card (option).</td></tr>
+      </table>
+      <ul>
+        <li>Landing on a marble sends it home. You cannot land on your own marble, and you cannot jump over your own marbles (option).</li>
+        <li>A marble on its own base (the star) is fully protected: nobody can pass it, kill it, swap it or move it with a 5, not even a King.</li>
+        <li><b>Wall:</b> two marbles of the same team on two holes next to each other block everyone, King included, in both directions. You may land on the first one (and kill it) but not on or past the second. A pair from two different teams does not block.</li>
+        <li>Taking a marble out kills whatever is sitting on your base.</li>
+        <li>The safe column is entered straight up from hole 17 of your own arm, so neither hole 18 nor your base is in the way. You enter your safe zone after a full lap. Backing up 4 from your base and then moving forward (to 15, 16, 17) enters it early. No jumping over marbles inside the safe zone; the card must fit exactly.</li>
+        <li>A marble standing on hole 18 has missed its entrance and must go round again. An opponent's 5 can push a marble past its entrance, so it laps again, but it can never push it into the safe column.</li>
+        <li>When all your marbles are safe you keep playing cards, moving your partner's marbles.</li>
+        <li>Each arm's holes are numbered 1–18 counting from the previous player's star, so you can count a move; hole 18 ends beside the arm's own star, and a marble enters its safe column straight up from hole 17 of its own arm (hole 18 and the star are not on the way home). When you pick a card, the holes you can reach light up; tap a lit hole or the marble.</li>
+        <li>Deal: 5 cards each from a fresh deck, then 4 each. A second deck is used for 6 and 8 players. The shuffled order is committed with a SHA-256 hash before the first card is dealt and revealed when the deck is used up.</li>
+      </ul>
+      <form method="dialog"><button class="primary">Close</button></form>
+    </article>
+  </dialog>
+
+  <dialog id="designDialog">
+    <article>
+      <h2>Choose your board</h2>
+      <p class="muted">Only changes how the table looks on this device. Everyone can pick their own.</p>
+      <div id="designGrid" class="design-grid"></div>
+      <form method="dialog"><button class="primary">Done</button></form>
+    </article>
+  </dialog>
+  <canvas id="confetti" class="confetti hidden"></canvas>
+  <div id="flyLayer"></div>
+  <script src="./config.js"></script>
+  <script src="./vendor/peerjs.min.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
