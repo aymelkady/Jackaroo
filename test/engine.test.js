@@ -318,10 +318,10 @@ test('red Queen may burn a card of your choice from the next player; black Queen
   assert.equal(st.pendingBurn, null);
 });
 
-test('10 may force the next player to burn a card of THEIR choice; the victim then loses the turn', () => {
+test('red 10 may force the next player to burn a card of THEIR choice; the victim then loses the turn', () => {
   const st = game(4);
   put(st, 0, 0, 'track', 3);
-  setHand(st, 0, ['10']);
+  setHand(st, 0, ['10H']);
   setHand(st, 1, ['A', '9']);
   put(st, 1, 0, 'track', 5);
   const lm = moves(st, 0);
@@ -337,6 +337,23 @@ test('10 may force the next player to burn a card of THEIR choice; the victim th
   assert.equal(st.turn, 2, 'after the forced burn the victim\'s turn is over');
   assert.equal(st.pendingBurn, null);
   assert.deepEqual(st.hands[1].map((c) => c.rank), ['9']);
+});
+
+test('black 10 (spades or clubs) only moves 10; red 10 and a Joker played as 10 may also make the next player burn', () => {
+  for (const [card, canBurn] of [['10S', false], ['10C', false], ['10H', true], ['10D', true]]) {
+    const st = game(4);
+    put(st, 0, 0, 'track', 3);
+    setHand(st, 0, [card]);
+    setHand(st, 1, ['A', '9']);
+    const lm = moves(st, 0);
+    assert.ok(lm.some((m) => m.kind === 'step' && m.steps === 10), `${card} moves 10`);
+    assert.equal(lm.some((m) => m.kind === 'tenBurn'), canBurn, `${card} ${canBurn ? 'may' : 'may not'} make the next player burn`);
+  }
+  const st = game(4, { jokers: true });
+  put(st, 0, 0, 'track', 3);
+  setHand(st, 0, ['JOKER']);
+  setHand(st, 1, ['A', '9']);
+  assert.ok(moves(st, 0).some((m) => m.kind === 'tenBurn' && m.rank === '10'), 'a Joker played as 10 counts as red');
 });
 
 test('near home: last free safe cell is 0, so cards that overshoot it can only be burned', () => {

@@ -487,7 +487,8 @@ function movesForRank(state, seat, ctrl, rank, card = { suit: null, rank }) {
     }
     case '10': {
       for (const m of stepMoves(state, ctrl, 10)) out.push({ ...m, picks: s.complexCards ? [m.picks[0]] : m.picks });
-      if (s.complexCards && nextHand.length) out.push({ kind: 'tenBurn', target: nxt, picks: [{ type: 'option', value: 'burn', label: `${nameOf(state, nxt)} must burn a card` }] });
+      // only a RED 10 (or a Joker played as 10) may make the next player burn; a black 10 only moves 10
+      if (s.complexCards && (joker || isRed(card)) && nextHand.length) out.push({ kind: 'tenBurn', target: nxt, picks: [{ type: 'option', value: 'burn', label: `${nameOf(state, nxt)} must burn a card` }] });
       break;
     }
     case '9': out.push(...stepMoves(state, ctrl, 9)); break;
